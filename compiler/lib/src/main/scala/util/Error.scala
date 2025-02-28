@@ -28,6 +28,14 @@ sealed trait Error {
         Error.print (Some(loc)) (s"duplicate C++ file ${file}")
         System.err.println("previous file would be generated here:")
         System.err.println(prevLoc)
+      case CodeGenError.DuplicateJsonFile(file, loc, prevLoc) =>
+        Error.print (Some(loc)) (s"duplicate JSON file ${file}")
+        System.err.println("previous file would be generated here:")
+        System.err.println(prevLoc)
+      case CodeGenError.DuplicateLayoutDirectory(dir, loc, prevLoc) =>
+        Error.print (Some(loc)) (s"duplicate topology layout directory ${dir}")
+        System.err.println("previous topology layout directory would be generated here:")
+        System.err.println(prevLoc)
       case CodeGenError.DuplicateXmlFile(file, loc, prevLoc) =>
         Error.print (Some(loc)) (s"duplicate XML file ${file}")
         System.err.println("previous file would be generated here:")
@@ -35,18 +43,16 @@ sealed trait Error {
       case CodeGenError.EmptyStruct(loc) =>
         Error.print (Some(loc)) (s"cannot write XML for an empty struct")
       case IncludeError.Cycle(loc, msg) => Error.print (Some(loc)) (msg)
-      case FileError.CannotOpen(locOpt, name) => 
+      case FileError.CannotOpen(locOpt, name) =>
         Error.print (locOpt) (s"cannot open file $name")
-      case FileError.CannotResolvePath(loc, name) => 
+      case FileError.CannotResolvePath(loc, name) =>
         Error.print (Some(loc)) (s"cannot resolve path $name")
+      case SemanticError.ChannelNotInDictionary(loc, channelName, topologyName) =>
+        Error.print (Some(loc)) (s"channel $channelName is not in the dictionary for topology $topologyName")
       case SemanticError.DivisionByZero(loc) =>
         Error.print (Some(loc)) ("division by zero")
-      case SemanticError.DuplicateConnection(
-        loc,
-        prevLoc,
-        matchingLoc
-      ) => 
-        Error.print (Some(loc)) ("duplicate connection")
+      case SemanticError.DuplicateConnectionAtMatchedPort(loc, port, portNum, prevLoc, matchingLoc) =>
+        Error.print (Some(loc)) (s"duplicate connection at matched port $port[$portNum]")
         printPrevLoc(prevLoc)
         printMatchingLoc(matchingLoc)
       case SemanticError.DuplicateDictionaryName(kind, name, loc, prevLoc) =>
@@ -67,10 +73,19 @@ sealed trait Error {
       case SemanticError.DuplicateLimit(loc, prevLoc) =>
         Error.print (Some(loc)) ("duplicate limit")
         printPrevLoc(prevLoc)
+      case SemanticError.DuplicateMatchedConnection(
+        loc,
+        prevLoc,
+        matchingLoc
+      ) =>
+        Error.print (Some(loc)) ("duplicate connection between a matched port array and a single instance")
+        printPrevLoc(prevLoc)
+        printMatchingLoc(matchingLoc)
+        System.err.println("note: each port in a matched port array must be connected to a separate instance")
       case SemanticError.DuplicateOpcodeValue(value, loc, prevLoc) =>
         Error.print (Some(loc)) (s"duplicate opcode value ${value}")
         printPrevLoc(prevLoc)
-      case SemanticError.DuplicateOutputPort(loc, portNum, prevLoc) =>
+      case SemanticError.DuplicateOutputConnection(loc, portNum, prevLoc) =>
         Error.print (Some(loc)) (s"duplicate connection at output port $portNum")
         printPrevLoc(prevLoc)
       case SemanticError.DuplicateParameter(name, loc, prevLoc) =>
@@ -84,15 +99,37 @@ sealed trait Error {
         Error.print (Some(loc)) (s"duplicate port instance ${name}")
         System.err.println("previous instance is here:")
         System.err.println(prevLoc)
+      case SemanticError.DuplicateStateMachineInstance(name, loc, prevLoc) =>
+        Error.print (Some(loc)) (s"duplicate state machine instance name ${name}")
+        printPrevLoc(prevLoc)
       case SemanticError.DuplicateStructMember(name, loc, prevLoc) =>
         Error.print (Some(loc)) (s"duplicate struct member ${name}")
         System.err.println("previous member is here:")
         System.err.println(prevLoc)
+      case SemanticError.DuplicateTlmPacketSet(name, loc, prevLoc) =>
+        Error.print (Some(loc)) (s"duplicate telemetry packet set ${name}")
+        System.err.println("previous set is here:")
+        System.err.println(prevLoc)
       case SemanticError.DuplicateTopology(name, loc, prevLoc) =>
         Error.print (Some(loc)) (s"duplicate topology ${name}")
         printPrevLoc(prevLoc)
-      case SemanticError.EmptyArray(loc) => 
+      case SemanticError.EmptyArray(loc) =>
         Error.print (Some(loc)) ("array expression may not be empty")
+      case SemanticError.ImplicitDuplicateConnectionAtMatchedPort(
+        loc,
+        port,
+        portNum,
+        implyingLoc,
+        matchingLoc,
+        prevLoc
+      ) =>
+        Error.print (Some(loc)) (s"implicit duplicate connection at matched port $port[$portNum]")
+        System.err.println("connection is implied here:")
+        System.err.println(implyingLoc)
+        System.err.println("because of matching specified here:")
+        System.err.println(matchingLoc)
+        System.err.println("conflicting connection is here:")
+        System.err.println(prevLoc)
       case SemanticError.InconsistentSpecLoc(loc, path, prevLoc, prevPath) =>
         Error.print (Some(loc)) (s"inconsistent location path ${path}")
         System.err.println(prevLoc)
@@ -106,12 +143,26 @@ sealed trait Error {
         Error.print (Some(loc)) (msg)
       case SemanticError.InvalidComponentInstance(loc, instanceName, topName) =>
         Error.print (Some(loc)) (s"instance $instanceName is not a member of topology $topName")
-      case SemanticError.InvalidConnection(loc, msg, fromLoc, toLoc) =>
+      case SemanticError.InvalidConnection(loc, msg, fromLoc, toLoc, fromPortDefLoc, toPortDefLoc) =>
         Error.print (Some(loc)) (msg)
         System.err.println("from port is specified here:")
         System.err.println(fromLoc)
         System.err.println("to port is specified here:")
         System.err.println(toLoc)
+        fromPortDefLoc match {
+          case Some(loc) =>
+            System.err.println("from port type is defined here:")
+            System.err.println(loc)
+          case _ => ()
+        }
+        toPortDefLoc match {
+          case Some(loc) =>
+            System.err.println("to port type is defined here:")
+            System.err.println(loc)
+          case _ => ()
+        }
+      case SemanticError.InvalidDataProducts(loc, msg) =>
+        Error.print (Some(loc)) (msg)
       case SemanticError.InvalidDefComponentInstance(name, loc, msg) =>
         Error.print (Some(loc)) (s"invalid component instance definition $name: $msg")
       case SemanticError.InvalidEnumConstants(loc) =>
@@ -147,12 +198,19 @@ sealed trait Error {
         Error.print (Some(loc)) ("only async input may have a priority")
       case SemanticError.InvalidQueueFull(loc) =>
         Error.print (Some(loc)) ("only async input may have queue full behavior")
+      case SemanticError.InvalidSpecialPort(loc, msg) =>
+        Error.print (Some(loc)) (msg)
       case SemanticError.InvalidStringSize(loc, size) =>
         Error.print (Some(loc)) (s"invalid string size $size")
       case SemanticError.InvalidSymbol(name, loc, msg, defLoc) =>
         Error.print (Some(loc)) (s"invalid symbol $name: $msg")
         System.err.println("symbol is defined here:")
         System.err.println(defLoc)
+      case SemanticError.InvalidTlmChannelName(loc, channelName, componentName) =>
+        Error.print (Some(loc)) (s"$channelName is not a telemetry channel of component $componentName")
+      case SemanticError.InvalidTlmPacketSet(loc, name, msg) =>
+        Error.print (Some(loc)) (s"invalid telemetry packet set $name")
+        System.err.println(msg)
       case SemanticError.InvalidType(loc, msg) =>
         Error.print (Some(loc)) (msg)
       case SemanticError.MismatchedPortNumbers(
@@ -171,8 +229,18 @@ sealed trait Error {
       case SemanticError.MissingConnection(loc, matchingLoc) =>
         Error.print (Some(loc)) ("no match for this connection")
         printMatchingLoc(matchingLoc)
-      case SemanticError.MissingPort(loc, specKind, portKind) =>
-        Error.print (Some(loc)) (s"component with $specKind specifiers must have $portKind port")
+      case SemanticError.MissingPortMatching(loc) =>
+        Error.print (Some(loc)) ("unmatched connection must go from or to a matched port")
+      case SemanticError.MissingPort(loc, specMsg, portMsg) =>
+        Error.print (Some(loc)) (s"component with $specMsg must have $portMsg")
+      case SemanticError.NoPortAvailableForMatchedNumbering(loc1, loc2, matchingLoc) =>
+        Error.print (None) (s"no port available for matched numbering")
+        System.err.println("matched connections are specified here:")
+        System.err.println(loc1)
+        System.err.println(loc2)
+        printMatchingLoc(matchingLoc)
+        System.err.println("note: to be available, a port number must be in bounds and " ++
+                           "unassigned at each of the matched ports")
       case SemanticError.OverlappingIdRanges(
         maxId1, name1, loc1, baseId2, name2, loc2
       ) =>
@@ -185,10 +253,44 @@ sealed trait Error {
         System.err.println(loc2)
       case SemanticError.PassiveAsync(loc) =>
         Error.print (Some(loc)) ("passive component may not have async input")
+      case SemanticError.PassiveStateMachine(loc) =>
+        Error.print (Some(loc)) ("passive component may not have a state machine instance")
       case SemanticError.RedefinedSymbol(name, loc, prevLoc) =>
         Error.print (Some(loc)) (s"redefinition of symbol ${name}")
         System.err.println("previous definition is here:")
         System.err.println(prevLoc)
+      case SemanticError.StateMachine.CallSiteTypeMismatch(
+        loc,
+        teKind,
+        teTy,
+        siteKind,
+        siteTy
+      ) =>
+        Error.print (Some(loc)) (s"type mismatch at $teKind")
+        System.err.println(s"type of $teKind is $teTy")
+        System.err.println(s"type of $siteKind is $siteTy")
+      case SemanticError.StateMachine.DuplicateSignal(sigName, stateName, loc, prevLoc) =>
+        Error.print (Some(loc)) (s"duplicate use of signal $sigName in state $stateName")
+        System.err.println("previous use is here:")
+        System.err.println(prevLoc)
+      case SemanticError.StateMachine.InvalidInitialTransition(loc, msg, destLoc) =>
+        Error.print (Some(loc)) (msg)
+        destLoc.map(loc => {
+          System.err.println("target is defined here:")
+          System.err.println(loc)
+        })
+      case SemanticError.StateMachine.ChoiceCycle(loc, msg) =>
+        Error.print (Some(loc)) (msg)
+      case SemanticError.StateMachine.ChoiceTypeMismatch(
+        loc, toLoc1, to1, toLoc2, to2
+      ) =>
+        Error.print (Some(loc)) (s"type mismatch at choice")
+        System.err.println(toLoc1)
+        System.err.println(s"type of transition is $to1")
+        System.err.println(toLoc2)
+        System.err.println(s"type of transition is $to2")
+      case SemanticError.StateMachine.UnreachableNode(name, loc) =>
+        Error.print (Some(loc)) (s"$name is unreachable")
       case SemanticError.TooManyOutputPorts(loc, numPorts, arraySize, instanceLoc) =>
         Error.print (Some(loc)) (s"too many ports connected here (found $numPorts, max is $arraySize)")
         System.err.println("for this component instance:")
@@ -211,6 +313,10 @@ final case class SyntaxError(loc: Location, msg: String) extends Error
 object CodeGenError {
   /** Duplicate C++ file path */
   final case class DuplicateCppFile(file: String, loc: Location, prevLoc: Location) extends Error
+  /** Duplicate JSON file path */
+  final case class DuplicateJsonFile(file: String, loc: Location, prevLoc: Location) extends Error
+  /** Duplicate Layout file path */
+  final case class DuplicateLayoutDirectory(dir: String, loc: Location, prevLoc: Location) extends Error
   /** Duplicate XML file path */
   final case class DuplicateXmlFile(file: String, loc: Location, prevLoc: Location) extends Error
   /** Empty struct */
@@ -235,11 +341,19 @@ object FileError {
 object SemanticError {
   /** Empty array */
   final case class EmptyArray(loc: Location) extends Error
+  /** Channel not in dictionary */
+  final case class ChannelNotInDictionary(
+    loc: Location,
+    channelName: String,
+    topologyName: String
+  ) extends Error
   /** Division by zero */
   final case class DivisionByZero(loc: Location) extends Error
-  /** Duplicate connection */
-  final case class DuplicateConnection(
+  /** Duplicate connection at matched port */
+  final case class DuplicateConnectionAtMatchedPort(
     loc: Location,
+    port: String,
+    portNum: Int,
     prevLoc: Location,
     matchingLoc: Location
   ) extends Error
@@ -279,6 +393,12 @@ object SemanticError {
     loc: Location,
     prevLoc: Location
   ) extends Error
+  /** Duplicate matched connection */
+  final case class DuplicateMatchedConnection(
+    loc: Location,
+    prevLoc: Location,
+    matchingLoc: Location
+  ) extends Error
   /** Duplicate opcode value */
   final case class DuplicateOpcodeValue(
     value: String,
@@ -286,7 +406,7 @@ object SemanticError {
     prevLoc: Location
   ) extends Error
   /** Duplicate output port */
-  final case class DuplicateOutputPort(
+  final case class DuplicateOutputConnection(
     loc: Location,
     portNum: Int,
     prevLoc: Location
@@ -309,8 +429,20 @@ object SemanticError {
     loc: Location,
     prevLoc: Location
   ) extends Error
+  /** Duplicate state machine instance */
+  final case class DuplicateStateMachineInstance(
+    name: String,
+    loc: Location,
+    prevLoc: Location
+  ) extends Error
   /** Duplicate struct member */
   final case class DuplicateStructMember(
+    name: String,
+    loc: Location,
+    prevLoc: Location
+  ) extends Error
+  /** Duplicate telemetry packet set */
+  final case class DuplicateTlmPacketSet(
     name: String,
     loc: Location,
     prevLoc: Location
@@ -319,6 +451,15 @@ object SemanticError {
   final case class DuplicateTopology(
     name: String,
     loc: Location,
+    prevLoc: Location
+  ) extends Error
+  /** Implicit duplicate connection at matched port */
+  final case class ImplicitDuplicateConnectionAtMatchedPort(
+    loc: Location,
+    port: String,
+    portNum: Int,
+    implyingLoc: Location,
+    matchingLoc: Location,
     prevLoc: Location
   ) extends Error
   /** Inconsistent location specifiers */
@@ -349,7 +490,14 @@ object SemanticError {
     loc: Location,
     msg: String,
     fromLoc: Location,
-    toLoc: Location
+    toLoc: Location,
+    fromPortDefLoc: Option[Location] = None,
+    toPortDefLoc: Option[Location] = None
+  ) extends Error
+  /** Invalid data products */
+  final case class InvalidDataProducts(
+    loc: Location,
+    msg: String
   ) extends Error
   /** Invalid component instance definition */
   final case class InvalidDefComponentInstance(
@@ -408,6 +556,8 @@ object SemanticError {
   final case class InvalidPriority(loc: Location) extends Error
   /** Invalid queue full specifier */
   final case class InvalidQueueFull(loc: Location) extends Error
+  /** Invalid special port */
+  final case class InvalidSpecialPort(loc: Location, msg: String) extends Error
   /** Invalid string size */
   final case class InvalidStringSize(loc: Location, size: BigInt) extends Error
   /** Invalid symbol */
@@ -416,6 +566,18 @@ object SemanticError {
     loc: Location,
     msg: String,
     defLoc: Location
+  ) extends Error
+  /** Invalid telemetry channel identifier name */
+  final case class InvalidTlmChannelName(
+    loc: Location,
+    channelName: String,
+    componentName: String
+  ) extends Error
+  /** Invalid telemetry packet */
+  final case class InvalidTlmPacketSet(
+    loc: Location,
+    name: String,
+    msg: String
   ) extends Error
   /** Invalid type */
   final case class InvalidType(loc: Location, msg: String) extends Error
@@ -437,26 +599,78 @@ object SemanticError {
   /** Missing port */
   final case class MissingPort(
     loc: Location,
-    specKind: String,
-    port: String
+    specMsg: String,
+    portmsg: String
+  ) extends Error
+  final case class MissingPortMatching(
+    loc: Location
+  ) extends Error
+  /** Matched port numbering could not find a valid port number */
+  final case class NoPortAvailableForMatchedNumbering(
+    loc1: Location,
+    loc2: Location,
+    matchingLoc: Location
   ) extends Error
   /** Overlapping ID ranges */
   final case class OverlappingIdRanges(
-    maxId1: Int,
+    maxId1: BigInt,
     name1: String,
     loc1: Location,
-    baseId2: Int,
+    baseId2: BigInt,
     name2: String,
     loc2: Location
   ) extends Error
   /** Passive async input */
   final case class PassiveAsync(loc: Location) extends Error
+  final case class PassiveStateMachine(loc: Location) extends Error
   /** Redefined symbol */
   final case class RedefinedSymbol(
     name: String,
     loc: Location,
     prevLoc: Location
   ) extends Error
+  /** State machine semantic errors */
+  object StateMachine {
+    /** Call site type mismatch */
+    final case class CallSiteTypeMismatch(
+      loc: Location,
+      teKind: String,
+      teTy: String,
+      siteKind: String,
+      siteTy: String
+    ) extends Error
+    /** Duplicate signal */
+    final case class DuplicateSignal(
+      sigName: String,
+      stateName: String,
+      loc: Location,
+      prevLoc: Location
+    ) extends Error
+    /** Invalid initial transition specifier */
+    final case class InvalidInitialTransition(
+      loc: Location,
+      msg: String,
+      destLoc: Option[Location] = None
+    ) extends Error
+    /** Choice cycle */
+    final case class ChoiceCycle(
+      loc: Location,
+      msg: String
+    ) extends Error
+    /** Choice type mismatch */
+    final case class ChoiceTypeMismatch(
+      loc: Location,
+      toLoc1: Location,
+      to1: String,
+      tLoc2: Location,
+      to2: String
+    ) extends Error
+    /** Unreachable node in the transition graph */
+    final case class UnreachableNode(
+      name: String,
+      loc: Location
+    ) extends Error
+  }
   /** Too many output ports */
   final case class TooManyOutputPorts(
     loc: Location,

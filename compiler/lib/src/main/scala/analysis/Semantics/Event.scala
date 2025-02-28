@@ -20,7 +20,7 @@ final case class Event(
 
 object Event {
 
-  type Id = Int
+  type Id = BigInt
 
   /** Creates a event from an event specifier */
   def fromSpecEvent(a: Analysis, aNode: Ast.Annotated[AstNode[Ast.SpecEvent]]):
@@ -37,6 +37,7 @@ object Event {
       }
       for {
         _ <- checkRefParams(data.params)
+        _ <- a.checkDisplayableParams(data.params, "type of event is not displayable")
         format <- Analysis.computeFormat(
           data.format,
           data.params.map(aNode => a.typeMap(aNode._2.data.typeName.id))

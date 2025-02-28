@@ -5,8 +5,15 @@ import java.time.Year
 /** Write a CppDoc to an hpp file */
 object CppDocHppWriter extends CppDocWriter {
 
-  def addParamComment(s: String, commentOpt: Option[String]): String = commentOpt match {
-    case Some(comment) => s"$s //!< ${"\n".r.replaceAllIn(comment, " ")}"
+  def addParamComment(s: String, commentOpt: Option[String]): List[Line] = commentOpt match {
+    case Some(comment) =>
+      val ls = CppDocWriter.writeDoxygenPostComment(comment)
+      Line.joinLists (Line.Indent) (lines(s)) (" ") (ls)
+    case None => lines(s)
+  }
+
+  def addParamDefault(s: String, defaultOpt: Option[String]): String = defaultOpt match {
+    case Some(default) => s"$s = $default"
     case None => s
   }
 
@@ -25,15 +32,14 @@ object CppDocHppWriter extends CppDocWriter {
 
   def paramString(p: CppDoc.Function.Param): String = {
     val s1 = CppDocCppWriter.paramString(p)
-    val s2 = addParamComment(s1, p.comment)
-    s2
+    addParamDefault(s1, p.default)
   }
 
-  def paramStringComma(p: CppDoc.Function.Param): String = {
-    val s1 = CppDocCppWriter.paramStringComma(p)
-    val s2 = addParamComment(s1, p.comment)
-    s2
-  }
+  def paramLines(p: CppDoc.Function.Param): List[Line] =
+    addParamComment(paramString(p), p.comment)
+
+  def paramLinesComma(p: CppDoc.Function.Param): List[Line] =
+    addParamComment(s"${paramString(p)},", p.comment)
 
   def writeAccessTag(tag: String): List[Line] = List(
     Line.blank,
@@ -43,24 +49,28 @@ object CppDocHppWriter extends CppDocWriter {
   def writeParams(prefix: String, params: List[CppDoc.Function.Param]): List[Line] = {
     if (params.length == 0) lines(s"$prefix()")
     else if (params.length == 1 && params.head.comment.isEmpty)
-      lines(s"$prefix(" ++ CppDocCppWriter.paramString(params.head) ++ ")")
+      lines(s"$prefix(" ++ paramString(params.head) ++ ")")
     else {
       val head :: tail = params.reverse
-      val paramLines = (writeParam(head) :: tail.map(writeParamComma(_))).reverse
-      line(s"$prefix(") :: (paramLines.map(_.indentIn(2 * indentIncrement)) :+ line(")"))
+      val paramsLines = (paramLines(head) :: tail.map(paramLinesComma(_))).reverse.flatten
+      line(s"$prefix(") :: (paramsLines.map(_.indentIn(2 * indentIncrement)) :+ line(")"))
     }
   }
 
   override def visitClass(in: Input, c: CppDoc.Class) = {
     val name = c.name
     val commentLines = CppDocWriter.writeDoxygenCommentOpt(c.comment)
+    val className = c.qualifier match {
+      case CppDoc.Class.Final => s"class $name final"
+      case CppDoc.Class.NonFinal => s"class $name"
+    }
     val openLines = c.superclassDecls match {
       case Some(d) => List(
-        line(s"class $name :"), 
+        line(s"$className :"),
         indentIn(line(d)),
         line("{")
       )
-      case None => lines(s"class $name {")
+      case None => lines(s"$className {")
     }
     val bodyLines = {
       val newClassNameList = name :: in.classNameList
@@ -85,12 +95,13 @@ object CppDocHppWriter extends CppDocWriter {
     outputLines
   }
 
-  override def visitCppDoc(cppDoc: CppDoc) = {
+  override def visitCppDoc(cppDoc: CppDoc, cppFileNameBaseOpt: Option[String] = None) = {
     val hppFile = cppDoc.hppFile
     val cppFileName = cppDoc.cppFileName
     val in = Input(hppFile, cppFileName)
     List(
       CppDocWriter.writeBanner(
+        cppDoc,
         in.hppFile.name,
         s"hpp file for ${cppDoc.description}"
       ),
@@ -120,9 +131,9 @@ object CppDocHppWriter extends CppDocWriter {
       val lines2 = {
         val prefix = {
           val prefix1 = function.svQualifier match {
-            case Virtual => "virtual "
             case PureVirtual => "virtual "
             case Static => "static "
+            case Virtual => "virtual "
             case _ => ""
           }
           val retType = function.retType.hppType match {
@@ -132,10 +143,15 @@ object CppDocHppWriter extends CppDocWriter {
           prefix1 ++ s"${retType}${function.name}"
         }
         val lines1 = {
-          val lines1 = writeParams(prefix, function.params)
-          function.constQualifier match {
-            case Const => Line.addSuffix(lines1, " const")
-            case _ => lines1
+          val lines11 = writeParams(prefix, function.params)
+          val lines12 = function.constQualifier match {
+            case Const => Line.addSuffix(lines11, " const")
+            case _ => lines11
+          }
+          function.svQualifier match {
+            case Final => Line.addSuffix(lines12, " final")
+            case Override => Line.addSuffix(lines12, " override")
+            case _ => lines12
           }
         }
         val lines2 = function.svQualifier match {
@@ -156,14 +172,6 @@ object CppDocHppWriter extends CppDocWriter {
       case CppDoc.Lines.Cpp => Nil
       case CppDoc.Lines.Both => content
     }
-  }
-
-  override def visitNamespace(in: Input, namespace: CppDoc.Namespace) = {
-    val name = namespace.name
-    val startLines = List(Line.blank, line(s"namespace $name {"))
-    val outputLines = namespace.members.map(visitNamespaceMember(in, _)).flatten
-    val endLines = List(Line.blank, line("}"))
-    startLines ++ outputLines.map(indentIn(_)) ++ endLines
   }
 
 }

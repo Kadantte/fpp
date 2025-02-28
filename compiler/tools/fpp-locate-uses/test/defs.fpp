@@ -4,6 +4,9 @@ module Fw {
   port Cmd
   port CmdReg
   port CmdResponse
+  port DpRequest
+  port DpResponse
+  port DpSend
   port Log
   port LogText
   port PrmGet
@@ -18,6 +21,7 @@ enum E { X, Y }
 enum Phases { setup, teardown }
 struct S { x: U32 }
 type T
+state machine S
 
 module M {
   array A = [3] U32
@@ -25,6 +29,7 @@ module M {
   enum E { X, Y }
   struct S { x: U32 }
   type T
+  state machine S
 } 
 
 port P
@@ -36,6 +41,7 @@ active component C1 {
   enum E { X, Y }
   struct S { x: U32 }
   type T
+  state machine S
 }
 
 instance c11: C1 \
@@ -56,6 +62,7 @@ module M {
     enum E { X, Y }
     struct S { x: U32 }
     type T
+    state machine S
   }
 
   instance c11: C1 base id 0x100
@@ -71,3 +78,16 @@ constant queue_size_def = 10
 constant stack_size_def = 10
 constant priority_def = 10
 constant cpu_def = 0
+constant record_id = 0
+array RecordType = [3] U32
+constant container_id = 0
+constant container_priority = 0
+constant product_recv_priority = 0
+
+type ActionType
+type GuardType
+type SignalType
+constant SignalConstant = 10
+
+constant tlm_packet_id = 0
+constant tlm_packet_group = 0

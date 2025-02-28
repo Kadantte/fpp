@@ -76,7 +76,7 @@ named `C1` and `C2`.
 As shown, to write an instance specifier, you write the
 keyword `instance` and the name of a component instance
 definition.
-In general the name may be a qualified name such as `A.B`
+In general the name may be a qualified name such as `A.B`.
 if the instance is defined inside a
 <<Defining-Modules,module>>; in this simple
 example it is not.
@@ -144,7 +144,39 @@ included direct graph specifiers for graphs named
 `C1` and `C2`.
 Here are some more details about direct graph specifiers.
 
-Each instance named in a connection must be part of the
+As shown in the previous section, each connection consists
+of an output port specifier, followed by an arrow, followed
+by an input port specifier.
+For example:
+
+[source,fpp]
+--------
+connections C {
+  a.p -> b.p
+}
+--------
+
+Each of the two port specifiers consists of a component
+instance name, followed by a dot, followed the name of a port instance.
+The component instance name must refer to a
+<<Defining-Component-Instances,component instance definition>>
+and may be qualified by a module name.
+For example:
+
+[source,fpp]
+--------
+connections C {
+  M.a.p -> N.b.p
+}
+--------
+
+Here component instance `a` is defined in module `M` and component
+instance `b` is defined in module `N`.
+In a port specifier `a.p`, the port instance name `p` must refer to a
+<<Defining-Components_Port-Instances,port instance>> of the
+component definition associated with the component instance `a`.
+
+Each component instance named in a connection must be part of the
 instance list in the topology.
 For example, if you write a connection `a.b pass:[->] c.d` inside
 a topology `T`, and the specifier `instance a` does not
@@ -193,6 +225,22 @@ For example, you can write this:
 --------
 connections C { a.p -> b.p, c.p -> d.p }
 --------
+
+The connections appearing in direct graph specifiers must obey the
+following rules:
+
+* Each connection must go from an output port instance to
+an input port instance.
+
+* The types of the ports must match, except that a
+<<Defining-Components_Port-Instances_Serial-Port-Instances,
+serial port instance>> may be connected to a port of any
+type.
+In particular, serial to serial connections are allowed.
+
+* If a typed port _P_ is connected to a serial port in either direction,
+then the port type of _P_ may not specify a
+<<Defining-Ports_Returning-Values,return type>>.
 
 ==== Pattern Graph Specifiers
 
@@ -493,7 +541,7 @@ You write the port number as a
 in square brackets, immediately following the port name.
 The port numbers start at zero.
 
-For example, the `RateGroups` graph of the reference topology in the F Prime 
+For example, the `RateGroups` graph of the Ref (reference) topology in the F Prime 
 repository defines the rate group connections.
 It contains the following connection:
 
@@ -555,7 +603,7 @@ Here are some rules to keep in mind when using explicit numbering:
 
 . You can write any numeric expression as a port number.
 Each port number must be in bounds for the port (greater than
-zero and less than the size of the port array).
+or equal to zero and less than the size of the port array).
 If you write a port number that is out of bounds, you will get an error.
 
 . Use symbolic constants judiciously.
@@ -662,16 +710,102 @@ For example, you may not connect `p1[0]` to another component
 and `p2[1]` to the same component, because this connection
 forces a mismatch.
 
+. Duplicate connections at the same port number of `p1` or
+`p2` are not allowed, even if `p1` or `p2` are input ports.
+
 If you violate these rules, you will get an error during
 analysis.
+You can relax these rules by writing unmatched connections,
+as described below.
+
+*Unmatched connections:*
+Occasionally you may need to relax the rules for using matched ports.
+For example, you may need to match pairs of connections that use
+the F Prime hub pattern to cross a network boundary.
+In this case, although the connections are logically matched
+at the endpoints, they all go through a single hub instance
+on the side of the boundary that has the matched ports, and so they do not obey the
+simple rules for matching given here.
+
+When a connection goes to or from a matched port,
+we say that it is *match constrained*.
+Ordinarily a match constrained connection must obey the
+rules for matching stated above.
+To relax the rules, you can write an *unmatched* connection.
+To do this, write the keyword `unmatched` at the start of the connection
+specifier.
+Here is an example:
+
+[source,fpp]
+--------
+Port P
+
+passive component Source {
+  sync input port pIn: [2] P
+  output port pOut: [2] P
+
+  match pOut with pIn
+}
+
+passive component Target {
+  sync input port pIn: [2] P
+  output port pOut: [2] P
+}
+
+instance source: Source base id 0x100
+instance target: Target base id 0x200
+
+topology T {
+
+  instance source
+  instance target
+
+  connections C {
+    unmatched source.pOut[0] -> target.pIn[0]
+    unmatched target.pOut[0] -> source.pIn[0]
+    unmatched source.pOut[1] -> target.pIn[1]
+    unmatched target.pOut[1] -> source.pIn[1]
+  }
+
+}
+--------
+
+In this example, there are two pairs of connections between the
+`pIn` and `pOut` connections of the instances `source` and `target`.
+The ports of `source` are match constrained, so ordinarily
+the connections would need to obey the matching rules.
+The connections do partially obey the rules: for example,
+there are no duplicate numbers, and the numbers match.
+However, both pairs of connections go to and from the same
+instance `target`; ordinarily this is not allowed for
+match constrained connections.
+To allow it, we need to use unmatched ports as shown.
+
+Note the following about using unmatched ports:
+
+. When connections are marked `unmatched`, the analyzer cannot check that the
+port numbers assigned to the connections conform to any particular pattern.
+If you need the port numbers to follow a pattern, as in the example shown 
+above, then you must use explicit numbering.
+For a suggestion on how to do this, see the discussion of manual matching 
+below.
+
+. Unmatched ports must still obey the rule that distinct
+connections at a matched port must have distinct port numbers.
+
+. The `unmatched` keyword is allowed only for connections that
+are match constrained, i.e., that go to or from a matched port.
+If you try to write an unmatched connection and the connection
+is not match constrained, then you will get an error.
 
 *Manual matching:*
-Automatic matched numbering works when each matched pair of connections
+Port matching specifiers work well when each matched pair of connections
 goes between the same two components, one of which
 has a matched pair of ports.
 If the matching does not follow this pattern, then automatic matched
-numbering will not work, and you will need to use explicit port
-numbers to express the matching.
+numbering will not work, and it is usually better not to 
+use a port matching specifier at all.
+Instead, you can use explicit port numbers to express the matching.
 For example, the Ref topology contains these connections:
 
 [source,fpp]

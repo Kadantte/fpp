@@ -32,6 +32,19 @@ active component C3 {
   telemetry port tlmOut
   text event port textEventOut
   time get port timeGetOut
+  state machine instance S_use: S
+  state machine instance M_S_use: M.S
+  state machine instance C1_S_use: C1.S
+  state machine instance M_C1_S_use: M.C1.S
+}
+
+active component C4 {
+  product request port productRequestOut
+  async product recv port productRecvIn priority product_recv_priority
+  product send port productSendOut
+  time get port timeGetOut
+  product container C id container_id default priority container_priority
+  product record R: RecordType id record_id
 }
 
 instance c12: C1 \
@@ -56,8 +69,29 @@ module M {
   }
 
   topology T2 {
+
     import T1
     instance c11
+
+    telemetry packets P {
+      packet P1 id tlm_packet_id group tlm_packet_group {
+
+      }
+    }
+
   }
+
+}
+
+state machine SM {
+
+  action a: ActionType
+  guard g: GuardType
+  signal s1: SignalType
+  signal s2: string size SignalConstant
+
+  initial enter S
+
+  state S
 
 }

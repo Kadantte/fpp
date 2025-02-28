@@ -60,7 +60,7 @@ A port instance instantiates a port.
 The port definition provides information common to all uses of the port, such as
 the kind of data carried on the port.
 The port instance provides use-specific information, such
-as the name of the instance and the the direction of invocation
+as the name of the instance and the direction of invocation
 (input or output).
 
 ==== Basic Port Instances
@@ -142,15 +142,15 @@ For example, in the {cpp} implementation, you would generate a
 base class with a virtual handler function, and then override that virtual
 function in a derived class that you write.
 For further details about implementing F Prime components, see the
-F Prime User's Guide.
+https://fprime.jpl.nasa.gov/devel/docs/user-manual/[F Prime User Manual].
 
 *Note on terminology:* As explained above, there is a technical
-distinction between a _port_ (defined outside any component, and providing
+distinction between a _port type_ (defined outside any component, and providing
 the type of a port instance)
-and a _port instance_ (defined inside a component and instantiating
+and a _port instance_ (specified inside a component and instantiating
 a port type).
 However, it is sometimes useful to refer to a port instance with
-the shorter term "port" when there is no danger of confusion.
+the shorter term "`port`" when there is no danger of confusion.
 We will do that in this manual.
 For example, we will say that the `F32Adder` component has three
 ports: two async input ports of type `F32Value` and one output port
@@ -189,8 +189,11 @@ Try presenting this code to `fpp-check` and observe what happens.
 
 Second, an active or queued component _must_ have asynchronous input.
 That means it must have at least one async input port;
-or it must have an internal port (described below);
-or it must have at least one async command (also described below).
+or it must have an internal port;
+or it must have at least one async command; or it must have
+at least one state machine instance.
+Internal ports, async commands, and state machine instances
+are described below.
 As an example, if we modify the input ports of our `ActiveF32Adder`
 to make them `sync`, we get an error, because
 there is no async input.
@@ -327,9 +330,10 @@ There are three possible behaviors:
 . `assert`: Fail a FSW assertion (the default behavior).
 . `block`: Block the sender until the queue is available.
 . `drop`: Drop the incoming message and proceed.
+. `hook`: Call a user-specified function and proceed.
 
 To specify queue full behavior, you write one of the keywords `assert`,
-`block`, or `drop` after the port type and after the priority
+`block`, `drop`, or `hook` after the port type and after the priority
 (if any).
 As an example, here is the `ActiveF32Adder` updated with explicit
 queue full behavior.
@@ -348,6 +352,9 @@ active component ActiveF32Adder {
 
   @ Input 2: Drop on queue full
   async input port f32ValueIn2: F32Value drop
+  
+  @ Input 3: Call hook function on queue full
+  async input port f32ValueIn3: F32Value hook
 
   @ Output
   output port f32ValueOut: F32Value
@@ -398,7 +405,7 @@ on that side.
 This flexibility comes at the cost that you lose the type
 compile-time type checking provided by port connections with named types.
 For more information about serial ports and their use, see
-the F Prime User's Guide.
+the https://fprime.jpl.nasa.gov/devel/docs/user-manual/[F Prime User Manual].
 
 === Special Port Instances
 
@@ -411,16 +418,28 @@ information such as array size and priority.
 Writing a special port instance is a bit different.
 In this case you specify a predefined behavior
 provided by the F Prime framework.
-The special port behaviors fall into five groups:
-commands, events, telemetry, parameters, and time.
+The special port behaviors fall into six groups:
+commands, events, telemetry, parameters, time,
+and data products.
 
 ==== Command Ports
 
 A *command* is an instruction to the spacecraft to perform an action.
-The special command behaviors, and their keywords, are as follows:
+Each component instance _C_ that specifies commands has the following
+high-level behaviors:
 
-* `command` `recv`: A port for receiving commands.
+. At FSW startup time, _C_ registers its commands with a component
+instance called the *command dispatcher*.
+
+. During FSW execution, _C_ receives commands from the command
+dispatcher.
+For each command received, _C_ executes the command and
+sends a response back to the command dispatcher.
+
+In FPP, the keywords for the special command behaviors are as follows:
+
 * `command` `reg`: A port for sending command registration requests.
+* `command` `recv`: A port for receiving commands.
 * `command` `resp`: A port for sending command responses.
 
 Collectively, these ports are known as *command ports*.
@@ -488,7 +507,7 @@ properly with F Prime {cpp} code generation.
 
 For further information about command registration, receipt, and
 response, and implementing command handlers, see the
-F Prime User's Guide.
+https://fprime.jpl.nasa.gov/devel/docs/user-manual/[F Prime User Manual].
 
 ==== Event Ports
 
@@ -547,7 +566,7 @@ module Fw {
 --------
 
 For further information about events in F Prime, see the
-F Prime User's Guide.
+https://fprime.jpl.nasa.gov/devel/docs/user-manual/[F Prime User Manual].
 
 ==== Telemetry Ports
 
@@ -590,7 +609,7 @@ module Fw {
 --------
 
 For further information about telemetry in F Prime, see the
-F Prime User's Guide.
+https://fprime.jpl.nasa.gov/devel/docs/user-manual/[F Prime User Manual].
 
 ==== Parameter Ports
 
@@ -652,8 +671,7 @@ module Fw {
 --------
 
 For further information about parameters in F Prime, see the
-F Prime User's Guide.
-
+https://fprime.jpl.nasa.gov/devel/docs/user-manual/[F Prime User Manual].
 
 ==== Time Get Ports
 
@@ -697,7 +715,105 @@ module Fw {
 --------
 
 For further information about time in F Prime, see the
-F Prime User's Guide.
+https://fprime.jpl.nasa.gov/devel/docs/user-manual/[F Prime User Manual].
+
+==== Data Product Ports
+
+A *data product* is a collection of data that can be stored to an
+onboard file system, given a priority, and downlinked in priority
+order.
+For example, a data product may be an image or a unit of
+science data.
+Data products are stored in *containers* that contain
+*records*.
+A record is a unit of data.
+A container stores (1) a header that describes the container
+and (2) a list of records.
+
+The special data product behaviors, and their keywords, are as follows:
+
+* `product` `get`: A port for synchronously requesting a
+memory buffer to store a container.
+
+* `product` `request`: A port for asynchronously requesting
+a buffer to store a container.
+
+* `product` `recv`: A port for receiving a response to an
+asynchronous buffer request.
+
+* `product` `send`: A port for sending a buffer that stores
+a container, after the container has been filled with data.
+
+Collectively, these ports are known as *data product ports*.
+To specify a data product port, you write one of the keyword groups
+shown above followed by the keyword `port` and the port name.
+To specify a product receive port, you must first write
+`async`, `sync` or `guarded` to specify whether the input port
+is asynchronous, synchronous, or guarded, as described in
+the section on <<Defining-Components_Port-Instances_Basic-Port-Instances,
+basic port instances>>.
+When specifying an `async` product receive port, you may
+specify a <<Defining-Components_Port-Instances_Priority,priority behavior>>
+or <<Defining-Components_Port-Instances_Queue-Full-Behavior,queue full behavior>>.
+
+As an example, here is a passive component `DataProductPorts` with each
+of the data product ports:
+
+[source,fpp]
+----
+@ A component for illustrating data product ports
+active component DataProductPorts {
+
+  @ A port for getting a data product container
+  product get port productGetOut
+
+  @ A port for requesting a data product container
+  product request port productRequestOut
+
+  @ An async port for receiving a requested data product container
+  async product recv port productRecvIn priority 10 assert
+
+  @ A port for sending a filled data product container
+  product send port productSendOut
+
+}
+----
+
+Any component may have at most one of each kind of data product
+port.
+If a component defines data products (more on this below),
+then there must be (1) a product get port or a product request port
+and (2) a product send port.
+If there is a product request port, then there must be a product
+receive port.
+
+During translation, each data product port is converted into
+a typed port instance with a predefined port type, as follows:
+
+* `product` `get` uses the port `Fw.DpGet`
+* `product` `request` uses the port `Fw.DpRequest`
+* `product` `recv` uses the port `Fw.DpResponse`
+* `product` `send` uses the port `Fw.DpSend`
+
+The F Prime framework provides definitions for these ports
+in the directory `Fw/Dp`.
+For checking simple examples, you can use the following
+simplified definitions of these ports:
+
+[source,fpp]
+--------
+module Fw {
+  port DpGet
+  port DpRequest
+  port DpResponse
+  port DpSend
+}
+--------
+
+For further information about data products in F Prime, see the
+https://fprime.jpl.nasa.gov/devel/docs/user-manual/framework/data-products/[F 
+Prime design documentation].
+
 
 === Internal Ports
 
@@ -751,7 +867,7 @@ active component InternalSelfMessage {
 }
 ----
 
-When the implementation of `ExternalSelfMessage` invokes
+When the implementation of `InternalSelfMessage` invokes
 the port `pInternal`, a message goes on its queue.
 This corresponds to the behavior of `pOut` in
 `ExternalSelfMessage`.
@@ -827,7 +943,8 @@ The command is handled in a {cpp} command handler that you write
 as part of the component implementation.
 
 For complete information about F Prime command dispatch and
-handling, see the F Prime User's Guide.
+handling, see the
+https://fprime.jpl.nasa.gov/devel/docs/user-manual/[F Prime User Manual].
 Here we concentrate on how to specify commands in FPP.
 
 ==== Basic Commands
@@ -864,11 +981,11 @@ active component Action {
   # Ports
   # ----------------------------------------------------------------------
 
-  @ Command registration
-  command reg port cmdRegOut
-
   @ Command input
   command recv port cmdIn
+
+  @ Command registration
+  command reg port cmdRegOut
 
   @ Command response
   command resp port cmdResponseOut
@@ -926,8 +1043,18 @@ argument values.
 
 The formal parameters of a command are the same
 as for a <<Defining-Ports_Formal-Parameters,port definition>>, except
-that none of the parameters may be a
+for the following:
+
+. None of the parameters may be a
 <<Defining-Ports_Reference-Parameters,reference parameter>>.
+
+. Each parameter must have a *displayable type*, i.e., a
+type that the F Prime ground data system knows how to display.
+For example, the type may not be an 
+<<Defining-Types_Abstract-Type-Definitions,abstract type>>.
+Nor may it be an array or struct type that has an abstract type
+as a member type.
+
 As an example, here is a `Switch` component that has
 two states, `ON` and `OFF`.
 The component has a `SET_STATE` command for
@@ -950,11 +1077,11 @@ active component Switch {
   # Ports
   # ----------------------------------------------------------------------
 
-  @ Command registration
-  command reg port cmdRegOut
-
   @ Command input
   command recv port cmdIn
+
+  @ Command registration
+  command reg port cmdRegOut
 
   @ Command response
   command resp port cmdResponseOut
@@ -965,16 +1092,20 @@ active component Switch {
 
   @ Set the state
   async command SET_STATE(
-    state: State @< The new state
+    $state: State @< The new state
   )
 
 }
 ----
 
-*GDS limitation:* The F Prime GDS does not currently support the
-use of <<Defining-Types_Array-Type-Definitions, array types>> or
-<<Defining-Types_Struct-Type-Definitions, struct types>> in the formal parameters
-of commands.
+In this example, the enum type `State` is a displayable type because
+its definition is known to FPP.
+Try replacing the enum definition with the
+abstract type definition `type S` and see what happens when
+you run the model through `fpp-check`.
+Remember to <<Defining-Components_Special-Port-Instances_Command-Ports,provide 
+stubs for the special command ports>> that are required by
+`fpp-check`.
 
 ==== Opcodes
 
@@ -1020,11 +1151,11 @@ active component CommandOpcodes {
   # Ports
   # ----------------------------------------------------------------------
 
-  @ Command registration
-  command reg port cmdRegOut
-
   @ Command input
   command recv port cmdIn
+
+  @ Command registration
+  command reg port cmdRegOut
 
   @ Command response
   command resp port cmdResponseOut
@@ -1058,11 +1189,11 @@ active component DuplicateOpcode {
   # Ports
   # ----------------------------------------------------------------------
 
-  @ Command registration
-  command reg port cmdRegOut
-
   @ Command input
   command recv port cmdIn
+
+  @ Command registration
+  command reg port cmdRegOut
 
   @ Command response
   command resp port cmdResponseOut
@@ -1100,11 +1231,11 @@ active component PriorityQueueFull {
   # Ports
   # ----------------------------------------------------------------------
 
-  @ Command registration
-  command reg port cmdRegOut
-
   @ Command input
   command recv port cmdIn
+
+  @ Command registration
+  command reg port cmdRegOut
 
   @ Command response
   command resp port cmdResponseOut
@@ -1139,7 +1270,8 @@ Calling the function emits a serialized event report that
 you can store in an on-board file system or send to the ground.
 
 For complete information about F Prime event
-handling, see the F Prime User's Guide.
+handling, see the
+https://fprime.jpl.nasa.gov/devel/docs/user-manual/[F Prime User Manual].
 Here we concentrate on how to specify events in FPP.
 
 ==== Basic Events
@@ -1225,10 +1357,9 @@ instance emits the event.
 The argument values appear in the formatted text
 that describes the event.
 
-The formal parameters of an event are the same
-as for a <<Defining-Ports_Formal-Parameters,port definition>>, except
-that none of the parameters may be a
-<<Defining-Ports_Reference-Parameters,reference parameter>>.
+You specify the formal parameters of an event in the same
+way as for a <<Defining-Components_Commands_Formal-Parameters,command 
+specifier>>.
 For each formal parameter, there must be a corresponding
 replacement field in the format string.
 The replacement fields for event format strings are the same as for
@@ -1413,7 +1544,8 @@ instance has emitted it ten times.
 Once an event is throttled, the component instance will no longer
 emit the event until the throttling is canceled.
 Typically, the canceling happens via a FSW command.
-For details, see the F Prime User's Guide.
+For details, see the
+https://fprime.jpl.nasa.gov/devel/docs/user-manual/[F Prime User Manual].
 
 === Telemetry
 
@@ -1429,7 +1561,8 @@ You can store the telemetry points in an on-board file system
 or send them the ground.
 
 For complete information about F Prime telemetry
-handling, see the F Prime User's Guide.
+handling, see the
+https://fprime.jpl.nasa.gov/devel/docs/user-manual/[F Prime User Manual].
 Here we concentrate on how to specify telemetry channels in FPP.
 
 ==== Basic Telemetry
@@ -1438,6 +1571,8 @@ The simplest telemetry channel consists of the keyword `telemetry`,
 a name, and a data type.
 The name is the name of the channel.
 The data type is the type of data carried on the channel.
+The data type must be a 
+<<Defining-Components_Commands_Formal-Parameters,displayable type>>.
 
 As an example, here is an active component called `BasicTelemetry`
 with a few basic events.
@@ -1742,10 +1877,6 @@ has a numeric type; or (3) an array or struct type
 each of whose members satisfies condition (1) or
 condition (2).
 
-*XML limitation:* The F Prime XML representation does
-not allow limits for telemetry channels
-of array or struct type.
-
 === Parameters
 
 When defining an F Prime component, you may specify one or more
@@ -1758,8 +1889,8 @@ for a hardware device or a software algorithm.
 F Prime has special support for parameters, including a parameter
 database component for storing parameters in a non-volatile
 manner (e.g., on a file system).
-For complete information about F Prime parameters, see the F Prime User's
-Guide.
+For complete information about F Prime parameters, see the
+https://fprime.jpl.nasa.gov/devel/docs/user-manual/[F Prime User Manual].
 Here we concentrate on how to specify parameters in FPP.
 
 ==== Basic Parameters
@@ -1768,6 +1899,8 @@ The simplest parameter consists of the keyword `param`,
 a name, and a data type.
 The name is the name of the parameter.
 The data type is the type of data stored in the parameter.
+The data type must be a 
+<<Defining-Components_Commands_Formal-Parameters,displayable type>>.
 
 As an example, here is an active component called `BasicParams`
 with a few basic parameters.
@@ -1833,13 +1966,6 @@ Therefore, any component that has parameters must have
 the command ports.
 Try deleting one or more of the command ports from the example
 above and see what `fpp-check` does.
-
-*GDS limitation:* The F Prime GDS does not currently support the
-use of <<Defining-Types_Array-Type-Definitions, array types>> or
-<<Defining-Types_Struct-Type-Definitions, struct types>> as the
-types of parameters.
-In particular, parameter `Param3` in the example above will
-not work with the F Prime GDS.
 
 ==== Default Values
 
@@ -2062,10 +2188,325 @@ passive component ParamOpcodes {
 }
 ----
 
-=== Constants and Types
+=== Data Products
 
-You can write a <<Defining-Constants,constant definition>>
-or <<Defining-Types,type definition>>
+When defining an F Prime component, you may specify the *data products*
+produced by that component.
+A data product is a collection of related data that is stored onboard
+and transmitted to the ground.
+F Prime has special support for data products, including components
+for (1) managing buffers that can store data products in memory;
+(2) writing data products to the file system; and (3)
+cataloging stored data products for downlink in priority order.
+For more information about these F Prime features, see the
+https://fprime.jpl.nasa.gov/devel/docs/user-manual/framework/data-products/[F 
+Prime design documentation].
+
+==== Basic Data Products
+
+In F Prime, a data product is represented as a *container*.
+One container holds one data product, and each data product
+is typically stored in its own file.
+A container consists of a header, which provides information about
+the container (e.g., the size of the data payload), and binary data
+representing a list of serialized *records*.
+A record is a unit of data.
+For a complete specification of the container format, see the 
+https://fprime.jpl.nasa.gov/devel/Fw/Dp/docs/sdd/[F Prime design 
+documentation].
+
+In an F Prime component, you can specify one or more containers
+and one or more records.
+The simplest container specification consists of the keywords `product` `container`
+and a name.
+The name is the name of the container.
+The simplest record specification consists of the keywords `product` `record`,
+a name, and a data type.
+The name is the name of the record.
+The data type is the type of the data that the record holds.
+The data type must be a 
+<<Defining-Components_Commands_Formal-Parameters,displayable type>>.
+
+As an example, here is a component called `BasicDataProducts` that specifies
+two records and two containers.
+
+[source,fpp]
+----
+@ A struct type defining some data
+struct Data { a: U32, b: F32 }
+
+@ A component for illustrating basic data products
+passive component BasicDataProducts {
+
+  # ----------------------------------------------------------------------
+  # Ports 
+  # ----------------------------------------------------------------------
+
+  @ Product get port
+  product get port productGetOut
+
+  @ Product send port
+  product send port productSendOut
+
+  @ Time get port
+  time get port timeGetOut
+
+  # ----------------------------------------------------------------------
+  # Records 
+  # ----------------------------------------------------------------------
+
+  @ Record 1
+  product record Record1: I32
+
+  @ Record 2
+  product record Record2: Data
+  
+  # ----------------------------------------------------------------------
+  # Containers 
+  # ----------------------------------------------------------------------
+
+  @ Container 1
+  product container Container1
+
+  @ Container 2
+  product container Container2
+
+}
+----
+
+The FPP back end uses this specification to generate code for requesting
+buffers to hold containers and for serializing records into containers.
+See the
+https://fprime.jpl.nasa.gov/devel/docs/user-manual/framework/data-products/[F
+Prime design documentation] for the details.
+
+Note the following:
+
+* Records are not specific to containers.
+For example, with the specification shown above, you can serialize instances of 
+`Record1` and `Record2` into either or both of `Container1` and `Container2`.
+
+* Like telemetry channels, F Prime containers are component-centric.
+A component can request containers that it defines, and it can fill those
+containers with records that it defines.
+It cannot use records or containers defined by another component.
+
+* If a component has container specifier, then it must have at least one record 
+specifier, and vice versa.
+
+==== Identifiers
+
+Every record in an F Prime FSW application has a unique
+numeric identifier.
+As for
+<<Defining-Components_Commands_Opcodes,command opcodes>>,
+<<Defining-Components_Events_Identifiers,event identifiers>>,
+<<Defining-Components_Telemetry_Identifiers,
+telemetry channel identifiers>>, and
+<<Defining-Components_Parameters,parameters>>,
+the record identifiers for a component are specified
+relative to the component, usually starting from
+zero and counting up by one.
+If you omit the identifier, then
+FPP assigns a default identifier: zero for the first
+event in the component; otherwise one more than the
+identifier of the previous parameter.
+The same observations apply to containers and container
+identifiers.
+
+If you wish, you may explicitly specify one or more
+container or record identifiers.
+To do this, you write the keyword `id` followed
+by a numeric expression at the end of the container
+or record specifier.
+Here is an example:
+
+[source,fpp]
+----
+@ A struct type defining some data
+struct Data { a: U32, b: F32 }
+
+@ A component for illustrating data product identifiers
+passive component DataProductIdentifiers {
+
+  # ----------------------------------------------------------------------
+  # Ports 
+  # ----------------------------------------------------------------------
+
+  @ Product get port
+  product get port productGetOut
+
+  @ Product send port
+  product send port productSendOut
+
+  @ Time get port
+  time get port timeGetOut
+
+  # ----------------------------------------------------------------------
+  # Records 
+  # ----------------------------------------------------------------------
+
+  @ Record 1
+  @ Its implied identifier is 0x00
+  product record Record1: I32
+
+  @ Record 2
+  @ Its identifier is 0x10
+  product record Record2: Data id 0x10
+  
+  # ----------------------------------------------------------------------
+  # Containers 
+  # ----------------------------------------------------------------------
+
+  @ Container 1
+  @ Its identifier is 0x10
+  product container Container1 id 0x10
+
+  @ Container 2
+  @ Its implied identifier is 0x11
+  product container Container2
+
+}
+----
+
+Within a component, the record identifiers must be unique,
+and the container identifiers must be unique.
+
+==== Array Records
+
+In the basic form of a record described above, each record that
+does not have 
+<<Defining-Types_Array-Type-Definitions_Type-Names,string type>>
+has a fixed, statically-specified size.
+The record may contain an array (e.g., an
+<<Defining-Types_Array-Type-Definitions,array type>>
+or a struct type with a
+<<Defining-Types_Struct-Type-Definitions_Member-Arrays,member array>>),
+but the size of the array must be specified in the model.
+To specify a record that is a dynamically-sized array, you put
+the keyword `array` after the type specifier for the record.
+For example:
+
+[source,fpp]
+----
+@ A struct type defining some data
+struct Data { a: U32, b: F32 }
+
+@ A component for illustrating array records
+passive component ArrayRecords {
+
+  # ----------------------------------------------------------------------
+  # Ports 
+  # ----------------------------------------------------------------------
+
+  @ Product get port
+  product get port productGetOut
+
+  @ Product send port
+  product send port productSendOut
+
+  @ Time get port
+  time get port timeGetOut
+
+  # ----------------------------------------------------------------------
+  # Records 
+  # ----------------------------------------------------------------------
+
+  @ A data record
+  @ It holds one element of type Data
+  product record DataRecord: Data
+
+  @ A data array record
+  @ It holds an array of elements of type Data
+  product record DataArrayRecord: Data array
+
+  # ----------------------------------------------------------------------
+  # Containers 
+  # ----------------------------------------------------------------------
+
+  @ A container
+  product container Container
+
+}
+----
+
+In this example, a record with name `DataArrayRecord` holds
+an array of elements of type `Data`.
+The number of elements is unspecified in the model;
+it is provided when the record is serialized into a container.
+
+=== State Machine Instances
+
+A *state machine instance* is a component member that instantiates
+an FPP <<Defining-State-Machines,state machine>>.
+The state machine instance becomes part of the component implementation.
+
+For example, here is a simple async component that has
+one state machine instance and one async input port
+for driving the state machine:
+
+[source,fpp]
+----
+@ An external state machine
+state machine M
+
+@ A component with a state machine
+active component StateMachine {
+
+  @ A port for driving the state machine
+  async input port schedIn: Svc.Sched
+
+  @ An instance of state machine M
+  state machine instance m: M
+
+}
+----
+
+When a state machine instance _m_ is part of a component _C_,
+each instance _c_ of _C_ sends _m_ *signals* to process as it runs.
+Signals occur in response to commands or port
+invocations received by _c_, and they tell _m_ when to change state.
+_c_ puts the signals on its queue, and _m_ dispatches them.
+Therefore, if a component _C_ has a state machine instance member _m_,
+then its instances _c_ must have queues, i.e., _C_ must be active or queued.
+
+As with <<Defining-Components_Internal-Ports,internal ports>>,
+you may specify priority and queue full behavior associated
+with the signals dispatched by a state machine instance.
+For example, we can revise the example above as follows:
+
+[source,fpp]
+----
+@ An external state machine
+state machine M
+
+@ A component with a state machine
+active component StateMachine {
+
+  @ A port for driving the state machine
+  async input port schedIn: Svc.Sched
+
+  @ An instance of state machine M
+  state machine instance m: M priority 10 drop
+
+}
+----
+
+As discussed
+<<Defining-State-Machines_Writing-a-State-Machine-Definition,above>>, state
+machine definitions may be internal (specified in FPP) or external (specified
+by an external tool).  For more details about the {cpp} code generation for
+instances of internal state machines, see the
+https://fprime.jpl.nasa.gov/devel/docs/user-manual/framework/state-machines/[F 
+Prime design documentation].
+
+=== Constants, Types, Enums, and State Machines
+
+You can write a <<Defining-Constants,constant definition>>,
+<<Defining-Types,type definition>>, 
+<<Defining-Enums,enum definition>>, 
+or
+<<Defining-State-Machines,state machine definition>>
 as a component member.
 When you do this, the component qualifies
 the name of the constant or type, similarly to the way that a
@@ -2081,7 +2522,7 @@ type as `T`.
 type as `C.T`.
 
 As an example, here is the `SerialSplitter` component
-from the section on 
+from the section on
 <<Defining-Components_Port-Instances_Serial-Port-Instances,
 serial port instances>>, where we have moved the
 definition of the constant `splitFactor`
@@ -2093,14 +2534,14 @@ into the definition of the component.
 passive component SerialSplitter {
 
   # ----------------------------------------------------------------------
-  # Constants 
+  # Constants
   # ----------------------------------------------------------------------
 
   @ Split factor
   constant splitFactor = 10
 
   # ----------------------------------------------------------------------
-  # Ports 
+  # Ports
   # ----------------------------------------------------------------------
 
   @ Input
@@ -2123,7 +2564,7 @@ the enum `State` into the component:
 active component Switch {
 
   # ----------------------------------------------------------------------
-  # Types 
+  # Types
   # ----------------------------------------------------------------------
 
   @ The state enumeration
@@ -2136,11 +2577,11 @@ active component Switch {
   # Ports
   # ----------------------------------------------------------------------
 
-  @ Command registration
-  command reg port cmdRegOut
-
   @ Command input
   command recv port cmdIn
+
+  @ Command registration
+  command reg port cmdRegOut
 
   @ Command response
   command resp port cmdResponseOut
@@ -2151,7 +2592,7 @@ active component Switch {
 
   @ Set the state
   async command SET_STATE(
-    state: State @< The new state
+    $state: State @< The new state
   )
 
 }
@@ -2162,12 +2603,12 @@ when the definition logically belongs to the component.
 The name scoping mechanism emphasizes the hierarchical relationship
 and prevents name clashes.
 
-*XML limitation:* In most cases, a qualified name such as `Switch.State`
+In most cases, a qualified name such as `Switch.State`
 in FPP becomes a qualified name such as `Switch::State` when translating
 to {cpp}.
 However, the F Prime XML format does not support the definition
 of constants and types as members of {cpp} components.
-Therefore, when translating the previous example through XML to {cpp}, 
+Therefore, when translating the previous example to {cpp},
 the following occurs:
 
 . The component `Switch` becomes an auto-generated {cpp} class
@@ -2205,7 +2646,7 @@ include "Commands.fppi"
 
 This construct is called an *include specifier*.
 During analysis and translation, the include specifier
-is replaced with the commands specified 
+is replaced with the commands specified
 in `Commands.fppi`, just as if you had written them
 at the point where you wrote the include specifier.
 This replacement is called expanding or resolving the

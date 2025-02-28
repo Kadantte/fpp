@@ -18,12 +18,14 @@ object FPPDepend {
   }
 
   case class Options(
+    autoTestHelpers: Boolean = false,
     directFile: Option[String] = None,
     files: List[File] = List(),
     frameworkFile: Option[String] = None,
-    generatedFile: Option[String] = None,
+    generatedAutocodeFile: Option[String] = None,
     includedFile: Option[String] = None,
-    missingFile: Option[String] = None
+    missingFile: Option[String] = None,
+    unitTestFile: Option[String] = None,
   )
 
   def mapIterable[T](
@@ -73,10 +75,21 @@ object FPPDepend {
           }
         case None => Right(())
       }
-      _ <- options.generatedFile match {
+      _ <- options.generatedAutocodeFile match {
         case Some(file) =>
-          for (files <- ComputeGeneratedFiles.getFiles(tul))
-            yield writeIterable(files, file)
+          for (files <- ComputeGeneratedFiles.getAutocodeFiles(tul))
+          yield writeIterable(files, file)
+        case None => Right(())
+      }
+      _ <- options.unitTestFile match {
+        case Some(file) =>
+          for {
+            files <- ComputeGeneratedFiles.getTestFiles(
+              tul,
+              CppWriter.getTestHelperMode(options.autoTestHelpers)
+            )
+          }
+          yield writeIterable(files, file)
         case None => Right(())
       }
       _ <- options.includedFile match {
@@ -103,20 +116,8 @@ object FPPDepend {
       }
   }
 
-  def main(args: Array[String]) = {
-    Error.setTool(Tool(name))
-    val options = OParser.parse(oparser, args, Options())
-    for { result <- options } yield {
-      command(result) match {
-        case Left(error) => {
-          error.print
-          System.exit(1)
-        }
-        case _ => ()
-      }
-    }
-    ()
-  }
+  def main(args: Array[String]) =
+    Tool(name).mainMethod(args, oparser, Options(), command)
 
   val builder = OParser.builder[Options]
 
@@ -127,6 +128,10 @@ object FPPDepend {
     OParser.sequence(
       programName(name),
       head(name, Version.v),
+      help('h', "help").text("print this message and exit"),
+      opt[Unit]('a', "auto-test-helpers")
+        .action((_, c) => c.copy(autoTestHelpers = true))
+        .text("enable automatic generation of test helper code"),
       opt[String]('d', "direct")
         .valueName("<file>")
         .action((m, c) => c.copy(directFile = Some(m)))
@@ -137,8 +142,8 @@ object FPPDepend {
         .text("write framework dependencies to file"),
       opt[String]('g', "generated")
         .valueName("<file>")
-        .action((m, c) => c.copy(generatedFile = Some(m)))
-        .text("write names of generated files to file"),
+        .action((m, c) => c.copy(generatedAutocodeFile = Some(m)))
+        .text("write names of generated autocode files to file"),
       opt[String]('i', "included")
         .valueName("<file>")
         .action((m, c) => c.copy(includedFile = Some(m)))
@@ -147,7 +152,10 @@ object FPPDepend {
         .valueName("<file>")
         .action((m, c) => c.copy(missingFile = Some(m)))
         .text("write missing dependencies to file"),
-      help('h', "help").text("print this message and exit"),
+      opt[String]('u', "unit-test")
+        .valueName("<file>")
+        .action((m, c) => c.copy(unitTestFile = Some(m)))
+        .text("write names of generated unit test files to file"),
       arg[String]("file ...")
         .unbounded()
         .optional()

@@ -63,18 +63,34 @@ case class Analysis(
   topologyMap: Map[Symbol.Topology, Topology] = Map(),
   /** The topology under construction */
   topology: Option[Topology] = None,
+  /** The map from state machine symbols to state machines */
+  stateMachineMap: Map[Symbol.StateMachine, StateMachine] = Map(),
+  /** The map from topology symbols to dictionaries */
+  dictionaryMap: Map[Symbol.Topology, Dictionary] = Map(),
+  /** The dictionary under construction */
+  dictionary: Option[Dictionary] = None,
+  /** The telemetry packet set under construction */
+  tlmPacketSet: Option[TlmPacketSet] = None
 ) {
 
   /** Gets the qualified name of a symbol */
-  def getQualifiedName(s: Symbol): Name.Qualified = {
-    def getIdentList(so: Option[Symbol], out: List[Ast.Ident]): List[Ast.Ident] =
-      so match {
-        case Some(s) =>
-          val so1 = parentSymbolMap.get(s)
-          getIdentList(so1, s.getUnqualifiedName :: out)
-        case None => out
-      }
-    Name.Qualified.fromIdentList(getIdentList(Some(s), Nil))
+  val getQualifiedName = Analysis.getQualifiedNameFromMap (parentSymbolMap)
+
+  /** Gets the short name of a symbol
+   *  When generating C++, we may need to keep the component prefix, because
+   *  it is part of the symbol name */
+  def getShortName(
+    symbol: Symbol,
+    context: Symbol,
+    componentPrefix: Analysis.ComponentPrefix = Analysis.ComponentPrefix.Omit
+  ): Name.Qualified = {
+    val name = getQualifiedName(symbol)
+    val enclosingPrefix = getEnclosingNames(context)
+    val prefix = (context, componentPrefix) match {
+      case (_: Symbol.Component, Analysis.ComponentPrefix.Keep) => enclosingPrefix
+      case _ => enclosingPrefix :+ context.getUnqualifiedName
+    }
+    name.shortName(prefix)
   }
 
   /** Gets the list of enclosing identifiers for a symbol */
@@ -235,12 +251,23 @@ case class Analysis(
     for (ts <- getTopologySymbol(id))
       yield this.topologyMap(ts)
 
-  /** Gets an int value from an AST node */
-  def getIntValue(id: AstNode.Id): Result.Result[Int] = {
+  /** Gets a dictionary from the dictionary map */
+  def getDictionary(id: AstNode.Id): Result.Result[Dictionary] =
+    for (ts <- getTopologySymbol(id))
+      yield this.dictionaryMap(ts)
+
+  /** Gets a BigInt value from an AST node */
+  def getBigIntValue(id: AstNode.Id): BigInt = {
     val Value.Integer(v) = Analysis.convertValueToType(
       valueMap(id),
       Type.Integer
     )
+    v
+  }
+
+  /** Gets an int value from an AST node */
+  def getIntValue(id: AstNode.Id): Result.Result[Int] = {
+    val v = getBigIntValue(id)
     if (v >= Int.MinValue && v <= Int.MaxValue) {
       Right(v.intValue)
     }
@@ -248,6 +275,17 @@ case class Analysis(
       val loc = Locations.get(id)
       Left(SemanticError.InvalidIntValue(loc, v, "value out of range"))
     }
+  }
+
+  /** Gets a nonnegative BigInt value from an AST node */
+  def getNonnegativeBigIntValue(id: AstNode.Id): Result.Result[BigInt] = {
+    val v = getBigIntValue(id)
+    if (v >= 0) Right(v)
+      else Left(SemanticError.InvalidIntValue(
+        Locations.get(id),
+        v,
+        "value may not be negative"
+      ))
   }
 
   /** Gets a nonnegative int value from an AST node */
@@ -262,13 +300,22 @@ case class Analysis(
            ))
     }
     yield v
- 
+
+  /** Gets an optional BigInt value from an AST node */
+  def getBigIntValueOpt[T](nodeOpt: Option[AstNode[T]]): Option[BigInt] =
+    nodeOpt.map((node: AstNode[T]) => getBigIntValue(node.id))
+
   /** Gets an optional int value from an AST node */
-  def getIntValueOpt[T](nodeOpt: Option[AstNode[T]]): Result.Result[Option[Int]] = 
+  def getIntValueOpt[T](nodeOpt: Option[AstNode[T]]): Result.Result[Option[Int]] =
     Result.mapOpt(nodeOpt, (node: AstNode[T]) => getIntValue(node.id))
 
+  /** Gets an optional nonnegative BigInt value from an AST ndoe */
+  def getNonnegativeBigIntValueOpt[T](nodeOpt: Option[AstNode[T]]):
+    Result.Result[Option[BigInt]] =
+    Result.mapOpt(nodeOpt, (node: AstNode[T]) => getNonnegativeBigIntValue(node.id))
+
   /** Gets an optional nonnegative int value from an AST ndoe */
-  def getNonnegativeIntValueOpt[T](nodeOpt: Option[AstNode[T]]): Result.Result[Option[Int]] = 
+  def getNonnegativeIntValueOpt[T](nodeOpt: Option[AstNode[T]]): Result.Result[Option[Int]] =
     Result.mapOpt(nodeOpt, (node: AstNode[T]) => getNonnegativeIntValue(node.id))
 
   /** Gets a bounded array size from an AST node */
@@ -284,7 +331,7 @@ case class Analysis(
     yield size
 
   /** Gets an optional unbounded array size */
-  def getUnboundedArraySizeOpt[T](nodeOpt: Option[AstNode[T]]): Result.Result[Option[Int]] = 
+  def getUnboundedArraySizeOpt[T](nodeOpt: Option[AstNode[T]]): Result.Result[Option[Int]] =
     Result.mapOpt(nodeOpt, (node: AstNode[T]) => getUnboundedArraySize(node.id))
 
   /** Gets an unbounded array size from an AST node */
@@ -315,9 +362,100 @@ case class Analysis(
     }
   }
 
+  /** Gets the reason for a non-displayable type at an AST node id
+   *
+   *  The id must identify an AST node with a non-displayable type,
+   *  or the function will intentionally crash. */
+  def getReasonForNonDisplayableTypeAt(id: AstNode.Id): String = {
+    def getElementReason(id: AstNode.Id): String = {
+      val reason = getReasonForNonDisplayableTypeAt(id)
+      s"\n\n${Locations.get(id)}\nbecause this type is not displayable$reason"
+    }
+    this.typeMap(id) match {
+      case a: Type.Array =>
+        val id = a.node._2.data.eltType.id
+        getElementReason(id)
+      case s: Type.Struct =>
+        val idOpt = s.node._2.data.members.map(_._2.data.typeName.id).find(
+          id => !this.typeMap(id).isDisplayable
+        )
+        idOpt.map(getElementReason).getOrElse(
+          throw new InternalError(
+            "a non-displayable struct type must have a non-displayable member type"
+          )
+        )
+      case t =>
+        t.getDefNodeId.map(id => s"\n\n${Locations.get(id)}\nType is defined here").getOrElse(
+          throw new InternalError(
+            "a non-displayable type at an AST node ID must have a definition"
+          )
+        )
+    }
+  }
+
+  /** Checks for a displayable type */
+  def checkDisplayableType(id: AstNode.Id, errorMsg: String): Result.Result[Unit] = {
+    val loc = Locations.get(id)
+    val t = this.typeMap(id)
+    if (t.isDisplayable) Right(())
+    else {
+      val reason = getReasonForNonDisplayableTypeAt(id)
+      Left(SemanticError.InvalidType(loc, s"$errorMsg$reason"))
+    }
+  }
+
+  /** Checks that all parameters in a formal param list are displayable */
+  def checkDisplayableParams(nodes: Ast.FormalParamList, errorMsg: String): Result.Result[Unit] = {
+    Result.foldLeft (nodes) (()) ((result, aNode) =>
+      checkDisplayableType(aNode._2.data.typeName.id, errorMsg)
+    )
+  }
+
 }
 
 object Analysis {
+
+  /** Adds a dictionary element mapped by ID */
+  def addElementToIdMap[T](
+    map: Map[BigInt, T],
+    id: BigInt,
+    element: T,
+    getLoc: T => Location
+  ): Result.Result[(Map[BigInt,T], BigInt)] = {
+    map.get(id) match {
+      case Some(prevElement) =>
+        // Element already there: report the error
+        val idValue = displayIdValue(id)
+        val loc = getLoc(element)
+        val prevLoc = getLoc(prevElement)
+        Left(SemanticError.DuplicateIdValue(idValue, loc, prevLoc))
+      case None =>
+        // New element: compute the new map and the new default ID
+        Right(map + (id -> element), id + 1)
+    }
+  }
+
+  /** Checks for duplicate names in dictionary */
+  def checkDictionaryNames[Id,Value](
+    dictionary: Map[Id,Value],
+    kind: String,
+    getName: Value => String,
+    getLoc: Value => Location
+  ) = {
+    val initialMap: Map[String, Location] = Map()
+    Result.foldLeft (dictionary.toList) (initialMap) ((map, pair) => {
+      val (_, value) = pair
+      val name = getName(value)
+      val loc = getLoc(value)
+      map.get(name) match {
+        case Some(prevLoc) =>
+          Left(SemanticError.DuplicateDictionaryName(
+            kind, name, loc, prevLoc
+          ))
+        case _ => Right(map + (name -> loc))
+      }
+    })
+  }
 
   /** Compute the common type for two types */
   def commonType(t1: Type, t2: Type, errorLoc: Location): Result.Result[Type] =
@@ -376,18 +514,33 @@ object Analysis {
     def checkSize(format: Format) =
       if (format.fields.size < ts.size)
         Left(SemanticError.InvalidFormatString(loc, "missing replacement field"))
-      else if (format.fields.size > ts.size) 
+      else if (format.fields.size > ts.size)
         Left(SemanticError.InvalidFormatString(loc, "too many replacement fields"))
       else Right(())
     def checkNumericField(pair: (Type, Format.Field)) = {
       val (t, field) = pair
-      if (field.isInteger && !t.isInt) {
-        val loc = Locations.get(node.id)
-        Left(SemanticError.InvalidFormatString(loc, s"$t is not an integer type"))
-      } else if (field.isRational && !t.isFloat) {
-        val loc = Locations.get(node.id)
-        Left(SemanticError.InvalidFormatString(loc, s"$t is not a floating-point type"))
-      } else Right(())
+      val loc = Locations.get(node.id)
+      for {
+        _ <- if (field.isInteger && !t.isInt)
+               Left(SemanticError.InvalidFormatString(loc, s"$t is not an integer type"))
+             else Right(())
+        _ <- field match {
+               case Format.Field.Rational(Some(precision), _) =>
+                 if (precision > Format.Field.Rational.maxPrecision)
+                   Left(
+                     SemanticError.InvalidFormatString(
+                       loc,
+                       s"precision value $precision is out of range"
+                     )
+                   )
+                 else Right(())
+               case _ => Right(())
+             }
+        _ <- if (field.isRational && !t.isFloat)
+               Left(SemanticError.InvalidFormatString(loc, s"$t is not a floating-point type"))
+             else Right(())
+      }
+      yield ()
     }
     for {
       format <- Format.Parser.parseNode(node)
@@ -424,10 +577,30 @@ object Analysis {
     queueFullOpt.getOrElse(Ast.QueueFull.Assert)
 
   /** Displays an ID value */
-  def displayIdValue(value: Int): String = {
+  def displayIdValue(value: BigInt): String = {
     val dec = value.toString
-    val hex = Integer.toString(value, 16).toUpperCase
+    val hex = value.toString(16).toUpperCase
     s"($dec dec, $hex hex)"
+  }
+
+  /** Gets the qualified name of a symbol from a parent-symbol map */
+  def getQualifiedNameFromMap[S <: SymbolInterface]
+    (parentSymbolMap: Map[S,S]) (s: S):
+  Name.Qualified = {
+    def getIdentList(so: Option[S], out: List[Ast.Ident]): List[Ast.Ident] =
+      so match {
+        case Some(s) =>
+          val so1 = parentSymbolMap.get(s)
+          getIdentList(so1, s.getUnqualifiedName :: out)
+        case None => out
+      }
+    Name.Qualified.fromIdentList(getIdentList(Some(s), Nil))
+  }
+
+  sealed trait ComponentPrefix
+  object ComponentPrefix {
+    case object Keep extends ComponentPrefix
+    case object Omit extends ComponentPrefix
   }
 
 }

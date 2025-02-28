@@ -8,6 +8,10 @@ format_missing_repl
 format_not_numeric
 format_too_many_repls
 missing_ports
+negative_id
+negative_throttle
+not_displayable
 ok
 ref_params
+throttle_too_large
 "

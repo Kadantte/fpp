@@ -8,7 +8,7 @@ import fpp.compiler.util._
 abstract class TopologyCppWriterUtils(
   s: CppWriterState,
   aNode: Ast.Annotated[AstNode[Ast.DefTopology]]
-) extends CppWriterLineUtils {
+) extends CppWriterUtils {
 
   val symbol: Symbol.Topology = Symbol.Topology(aNode)
 
@@ -52,16 +52,8 @@ abstract class TopologyCppWriterUtils(
   def getComponentNameAsQualIdent(ci: ComponentInstance): String =
     getNameAsQualIdent(getComponentName(ci))
 
-  def getShortName(name: Name.Qualified): Name.Qualified = {
-    val ens = s.a.getEnclosingNames(symbol)
-    name.shortName(ens)
-  }
-
-  def getNameAsIdent(name: Name.Qualified): String =
-    CppWriter.identFromQualifiedName(getShortName(name))
-
   def getNameAsQualIdent(name: Name.Qualified): String =
-    CppWriter.writeQualifiedName(getShortName(name))
+    CppWriter.writeQualifiedName(name)
 
   def getSpecifierForPhase (phase: Int) (ci: ComponentInstance): 
     Option[InitSpecifier] = ci.initSpecifierMap.get(phase)

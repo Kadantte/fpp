@@ -52,22 +52,33 @@ object Ast {
   object ComponentMember {
     sealed trait Node
     final case class DefAbsType(node: AstNode[Ast.DefAbsType]) extends Node
+    final case class DefAliasType(node: AstNode[Ast.DefAliasType]) extends Node
     final case class DefArray(node: AstNode[Ast.DefArray]) extends Node
     final case class DefConstant(node: AstNode[Ast.DefConstant]) extends Node
     final case class DefEnum(node: AstNode[Ast.DefEnum]) extends Node
+    final case class DefStateMachine(node: AstNode[Ast.DefStateMachine]) extends Node
     final case class DefStruct(node: AstNode[Ast.DefStruct]) extends Node
     final case class SpecCommand(node: AstNode[Ast.SpecCommand]) extends Node
+    final case class SpecContainer(node: AstNode[Ast.SpecContainer]) extends Node
     final case class SpecEvent(node: AstNode[Ast.SpecEvent]) extends Node
     final case class SpecInclude(node: AstNode[Ast.SpecInclude]) extends Node
     final case class SpecInternalPort(node: AstNode[Ast.SpecInternalPort]) extends Node
     final case class SpecParam(node: AstNode[Ast.SpecParam]) extends Node
     final case class SpecPortInstance(node: AstNode[Ast.SpecPortInstance]) extends Node
     final case class SpecPortMatching(node: AstNode[Ast.SpecPortMatching]) extends Node
+    final case class SpecRecord(node: AstNode[Ast.SpecRecord]) extends Node
+    final case class SpecStateMachineInstance(node: AstNode[Ast.SpecStateMachineInstance]) extends Node
     final case class SpecTlmChannel(node: AstNode[Ast.SpecTlmChannel]) extends Node
   }
 
   /** Abstract type definition */
   final case class DefAbsType(name: Ident)
+
+  /* Aliased type definition */
+  final case class DefAliasType(
+    name: Ident,
+    typeName: AstNode[TypeName]
+  )
 
   /* Array definition */
   final case class DefArray(
@@ -127,6 +138,7 @@ object Ast {
   object ModuleMember {
     sealed trait Node
     final case class DefAbsType(node: AstNode[Ast.DefAbsType]) extends Node
+    final case class DefAliasType(node: AstNode[Ast.DefAliasType]) extends Node
     final case class DefArray(node: AstNode[Ast.DefArray]) extends Node
     final case class DefComponent(node: AstNode[Ast.DefComponent]) extends Node
     final case class DefComponentInstance(node: AstNode[Ast.DefComponentInstance]) extends Node
@@ -134,6 +146,7 @@ object Ast {
     final case class DefEnum(node: AstNode[Ast.DefEnum]) extends Node
     final case class DefModule(node: AstNode[Ast.DefModule]) extends Node
     final case class DefPort(node: AstNode[Ast.DefPort]) extends Node
+    final case class DefStateMachine(node: AstNode[Ast.DefStateMachine]) extends Node
     final case class DefStruct(node: AstNode[Ast.DefStruct]) extends Node
     final case class DefTopology(node: AstNode[Ast.DefTopology]) extends Node
     final case class SpecInclude(node: AstNode[Ast.SpecInclude]) extends Node
@@ -146,6 +159,105 @@ object Ast {
     params: FormalParamList,
     returnType: Option[AstNode[TypeName]]
   )
+
+  /** State machine definition */
+  final case class DefStateMachine(
+    name: Ident,
+    members: Option[List[StateMachineMember]]
+  )
+
+  /** State machine member */
+  final case class StateMachineMember(node: Annotated[StateMachineMember.Node])
+  object StateMachineMember {
+    sealed trait Node
+    final case class DefAction(node: AstNode[Ast.DefAction]) extends Node
+    final case class DefChoice(node: AstNode[Ast.DefChoice]) extends Node
+    final case class DefGuard(node: AstNode[Ast.DefGuard]) extends Node
+    final case class DefSignal(node: AstNode[Ast.DefSignal]) extends Node
+    final case class DefState(node: AstNode[Ast.DefState]) extends Node
+    final case class SpecInitialTransition(node: AstNode[Ast.SpecInitialTransition]) extends Node
+  }
+
+  /** Action definition */
+  final case class DefAction(
+    name: Ident,
+    typeName: Option[AstNode[TypeName]]
+  )
+
+  /** Choice definition */
+  final case class DefChoice(
+    name: Ident,
+    guard: AstNode[Ident],
+    ifTransition: AstNode[TransitionExpr],
+    elseTransition: AstNode[TransitionExpr]
+  )
+
+  /** Guard definition */
+  final case class DefGuard(
+    name: Ident,
+    typeName: Option[AstNode[TypeName]]
+  )
+
+  /** Transition expression */
+  final case class TransitionExpr(
+    actions: List[AstNode[Ident]],
+    target: AstNode[QualIdent]
+  )
+
+  /** Signal definition */
+  final case class DefSignal(
+    name: Ident,
+    typeName: Option[AstNode[TypeName]]
+  )
+
+  /** State definition */
+  final case class DefState(
+    name: Ident,
+    members: List[StateMember]
+  )
+
+  /** State member */
+  final case class StateMember(node: Annotated[StateMember.Node])
+  object StateMember {
+    sealed trait Node
+    final case class DefChoice(node: AstNode[Ast.DefChoice]) extends Node
+    final case class DefState(node: AstNode[Ast.DefState]) extends Node
+    final case class SpecInitialTransition(node: AstNode[Ast.SpecInitialTransition]) extends Node
+    final case class SpecStateEntry(node: AstNode[Ast.SpecStateEntry]) extends Node
+    final case class SpecStateExit(node: AstNode[Ast.SpecStateExit]) extends Node
+    final case class SpecStateTransition(node: AstNode[Ast.SpecStateTransition]) extends Node
+  }
+
+  /** Initial state specifier */
+  final case class SpecInitialTransition(
+    transition: AstNode[TransitionExpr]
+  )
+
+  /** State entry specifier */
+  final case class SpecStateEntry(
+    actions: List[AstNode[Ident]]
+  )
+
+  /** State exit specifier */
+  final case class SpecStateExit(
+    actions: List[AstNode[Ident]]
+  )
+
+  /** Transition specifier */
+  final case class SpecStateTransition(
+    signal: AstNode[Ident],
+    guard: Option[AstNode[Ident]],
+    transitionOrDo: TransitionOrDo
+  )
+
+  /** Transition or do within transition specifier */
+  sealed trait TransitionOrDo
+  object TransitionOrDo {
+    final case class Transition(
+      transition: AstNode[TransitionExpr]
+    ) extends TransitionOrDo
+    final case class Do(actions: List[AstNode[Ident]]) extends TransitionOrDo
+  }
 
   /** Struct definition */
   final case class DefStruct(
@@ -181,6 +293,7 @@ object Ast {
     final case class SpecCompInstance(node: AstNode[Ast.SpecCompInstance]) extends Node
     final case class SpecConnectionGraph(node: AstNode[Ast.SpecConnectionGraph]) extends Node
     final case class SpecInclude(node: AstNode[Ast.SpecInclude]) extends Node
+    final case class SpecTlmPacketSet(node: AstNode[Ast.SpecTlmPacketSet]) extends Node
     final case class SpecTopImport(node: AstNode[Ast.SpecTopImport]) extends Node
   }
 
@@ -219,7 +332,7 @@ object Ast {
 
     /** Convert a qualified identifier to a list of identifiers */
     def toIdentList: List[Ident]
-      
+
   }
 
   object QualIdent {
@@ -249,7 +362,7 @@ object Ast {
         }
       }
 
-    /** A qualified identifier represented as a list of identifier nodes 
+    /** A qualified identifier represented as a list of identifier nodes
      *  This is useful during parsing */
     type NodeList = List[AstNode[Ident]]
 
@@ -296,6 +409,9 @@ object Ast {
     }
     case object Drop extends QueueFull {
       override def toString = "drop"
+    }
+    case object Hook extends QueueFull {
+      override def toString = "hook"
     }
   }
 
@@ -369,12 +485,20 @@ object Ast {
 
     /** Connection */
     final case class Connection(
+      isUnmatched: Boolean,
       fromPort: AstNode[PortInstanceIdentifier],
       fromIndex: Option[AstNode[Expr]],
       toPort: AstNode[PortInstanceIdentifier],
       toIndex: Option[AstNode[Expr]]
     )
   }
+
+  /** Container specifier */
+  final case class SpecContainer(
+    name: Ident,
+    id: Option[AstNode[Expr]],
+    defaultPriority: Option[AstNode[Expr]]
+  )
 
   /** Event specifier */
   final case class SpecEvent(
@@ -449,6 +573,9 @@ object Ast {
     case object Port extends Kind {
       override def toString = "port"
     }
+    case object StateMachine extends Kind {
+      override def toString = "state machine"
+    }
     case object Topology extends Kind {
       override def toString = "topology"
     }
@@ -498,9 +625,24 @@ object Ast {
 
     /** Special port instance */
     final case class Special (
+      inputKind: Option[SpecialInputKind],
       kind: SpecialKind,
-      name: Ident
+      name: Ident,
+      priority: Option[AstNode[Expr]],
+      queueFull: Option[AstNode[QueueFull]]
     ) extends SpecPortInstance
+
+    /** Special port input kind */
+    sealed trait SpecialInputKind
+    case object Async extends SpecialInputKind {
+      override def toString = "async"
+    }
+    case object Guarded extends SpecialInputKind {
+      override def toString = "guarded"
+    }
+    case object Sync extends SpecialInputKind {
+      override def toString = "sync"
+    }
 
     /** Special port instance kind */
     sealed trait SpecialKind
@@ -522,6 +664,18 @@ object Ast {
     case object ParamSet extends SpecialKind {
       override def toString = "param set"
     }
+    case object ProductGet extends SpecialKind {
+      override def toString = "product get"
+    }
+    case object ProductRecv extends SpecialKind {
+      override def toString = "product recv"
+    }
+    case object ProductRequest extends SpecialKind {
+      override def toString = "product request"
+    }
+    case object ProductSend extends SpecialKind {
+      override def toString = "product send"
+    }
     case object Telemetry extends SpecialKind {
       override def toString = "telemetry"
     }
@@ -538,6 +692,22 @@ object Ast {
   final case class SpecPortMatching(
     port1: AstNode[Ident],
     port2: AstNode[Ident]
+  )
+
+  /** Record specifier */
+  final case class SpecRecord(
+    name: Ident,
+    recordType: AstNode[TypeName],
+    isArray: Boolean,
+    id: Option[AstNode[Expr]]
+  )
+
+  /** State machine instance spec */
+  final case class SpecStateMachineInstance(
+    name: Ident,
+    stateMachine: AstNode[QualIdent],
+    priority: Option[AstNode[Expr]],
+    queueFull: Option[QueueFull]
   )
 
   /** Telemetry channel specifier */
@@ -578,6 +748,21 @@ object Ast {
 
   }
 
+  /** Telemetry packet specifier */
+  final case class SpecTlmPacket(
+    name: Ident,
+    id: Option[AstNode[Expr]],
+    group: AstNode[Expr],
+    members: List[TlmPacketMember]
+  )
+
+  /** Telemetry packet set specifier */
+  final case class SpecTlmPacketSet(
+    name: Ident,
+    members: List[TlmPacketSetMember],
+    omitted: List[AstNode[TlmChannelIdentifier]]
+  )
+
   /** Topology import specifier */
   final case class SpecTopImport(top: AstNode[QualIdent])
 
@@ -591,6 +776,34 @@ object Ast {
     typeName: AstNode[TypeName],
     format: Option[AstNode[String]]
   )
+
+  /** Telemetry channel identifier */
+  final case class TlmChannelIdentifier(
+    componentInstance: AstNode[QualIdent],
+    channelName: AstNode[Ident]
+  )
+
+  /** Telemetry packet member */
+  sealed trait TlmPacketMember
+  object TlmPacketMember {
+
+    final case class SpecInclude(node: AstNode[Ast.SpecInclude])
+      extends TlmPacketMember
+
+    final case class TlmChannelIdentifier(node: AstNode[Ast.TlmChannelIdentifier])
+      extends TlmPacketMember
+
+  }
+
+  /** Telemetry packet set member */
+  final case class TlmPacketSetMember(node: Annotated[TlmPacketSetMember.Node])
+  object TlmPacketSetMember {
+    sealed trait Node
+    final case class SpecInclude(node: AstNode[Ast.SpecInclude])
+      extends Node
+    final case class SpecTlmPacket(node: AstNode[Ast.SpecTlmPacket])
+      extends Node
+  }
 
   /** Translation unit member */
   type TUMember = ModuleMember
@@ -658,5 +871,4 @@ object Ast {
       override def toString = "public"
     }
   }
-
 }

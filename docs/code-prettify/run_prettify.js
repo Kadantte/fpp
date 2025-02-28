@@ -404,6 +404,7 @@ var IN_GLOBAL_SCOPE = false;
       // We use things that coerce to strings to make them compact when minified
       // and to defeat aggressive optimizers that fold large string constants.
       var FPP_KEYWORDS = [
+          "action," +
           "active," +
           "activity," +
           "always," +
@@ -415,55 +416,77 @@ var IN_GLOBAL_SCOPE = false;
           "block," +
           "bool," +
           "change," +
+          "choice," +
           "command," +
           "component," +
           "connections," +
           "constant," +
+          "container," +
           "cpu," +
           "default," +
           "diagnostic," +
+          "do," +
           "drop," +
+          "else," +
+          "enter," +
+          "entry," +
           "enum," +
           "event," +
+          "exit," +
           "fatal," +
           "format," +
           "get," +
+          "group," +
+          "guard," +
           "guarded," +
           "health," +
           "high," +
+          "hook," +
           "id," +
+          "if," +
           "import," +
           "include," +
+          "initial," +
           "input," +
           "instance," +
           "internal," +
           "locate," +
           "low," +
+          "machine," +
           "match," +
           "module," +
+          "omit," +
           "on," +
           "opcode," +
           "orange," +
           "output," +
+          "packet," +
+          "packets," +
           "param," +
           "passive," +
           "phase," +
           "port," +
           "priority," +
           "private," +
+          "product," +
           "queued," +
           "queue," +
+          "record," +
           "recv," +
           "red," +
           "ref," +
           "reg," +
+          "request," +
           "resp," +
           "save," +
+          "send," +
           "serial," +
           "set," +
           "severity," +
+          "signal," +
           "size," +
           "stack," +
+          "state," +
           "string," +
           "struct," +
           "sync," +
@@ -473,6 +496,7 @@ var IN_GLOBAL_SCOPE = false;
           "time," +
           "topology," +
           "type," +
+          "unmatched," +
           "update," +
           "warning," +
           "with," +

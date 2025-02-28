@@ -14,9 +14,14 @@ module M {
 
   }
 
-  instance active1: Active base id 0x100 \
-    at "Active.hpp" \
-    queue size 10 stack size 1024 priority 1 cpu 0
+}
+
+instance active1: M.Active base id 0x100 \
+  at "Active.hpp" \
+  queue size 10 stack size 1024 priority 1 cpu 0
+
+module M {
+
   instance active2: Active base id 0x200 \
     queue size 10 \
   {
@@ -37,27 +42,27 @@ module M {
     """
 
     phase Phases.initComponents """
-    active2.initSpecial();
+    M::active2.initSpecial();
     """
 
     phase Phases.configComponents """
-    active2.config();
+    M::active2.config();
     """
 
     phase Phases.startTasks """
-    active2.startSpecial();
+    M::active2.startSpecial();
     """
 
     phase Phases.stopTasks """
-    active2.stopSpecial();
+    M::active2.stopSpecial();
     """
 
     phase Phases.freeThreads """
-    active2.freeSpecial();
+    M::active2.freeSpecial();
     """
 
     phase Phases.tearDownComponents """
-    active2.tearDown();
+    M::active2.tearDown();
     """
 
   }

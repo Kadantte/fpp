@@ -15,8 +15,9 @@ Syntax-Notation.adoc
 Lexical-Elements.adoc
 Element-Sequences.adoc
 Definitions/Definitions.adoc
+State-Machine-Behavior-Elements/State-Machine-Behavior-Elements.adoc
 Specifiers/Specifiers.adoc
-Port-Instance-Identifiers.adoc
+Component-Instance-Member-Identifiers.adoc
 Type-Names.adoc
 Expressions/Expressions.adoc
 Formal-Parameter-Lists.adoc
@@ -27,6 +28,7 @@ Scoping-of-Names.adoc
 Definitions-and-Uses.adoc
 Types.adoc
 Type-Checking.adoc
+Type-Options.adoc
 Values.adoc
 Evaluation.adoc
 Analysis-and-Translation.adoc

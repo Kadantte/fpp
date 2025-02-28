@@ -21,13 +21,13 @@ a.b.c
 
 === Names of Definitions
 
-Every 
+Every
 <<Definitions,definition>>
  _D_ appearing in an FPP model has a unique *qualified
 name*. The qualified name is a
 <<Scoping-of-Names_Qualified-Identifiers,qualified identifier>> formed as follows:
 
-* If _D_ appears outside any 
+* If _D_ appears outside any
 <<Definitions,definition>> with a brace-delimited body, then
 the qualified name is the identifier _I_ appearing in _D_.
 
@@ -60,6 +60,8 @@ reside in the following *name groups*:
 
 . The *port name group*
 
+. The *state machine name group*
+
 . The *topology name group*
 
 . The *type name group*
@@ -73,7 +75,8 @@ Definitions reside in name groups as follows:
 * Array type definitions reside in the type name group.
 
 * Component definitions reside in the component name group,
-the value name group, and the type name group.
+the value name group, the type name group, and the
+state machine name group.
 
 * Component instance definitions reside in the component instance name group.
 
@@ -86,6 +89,8 @@ the value name group, and the type name group.
 * Module definitions reside in all the name groups.
 
 * Port definitions reside in the port name group.
+
+* State machine definitions reside in the state machine name group.
 
 * Struct type definitions reside in the type name group.
 
@@ -251,7 +256,7 @@ module M {
 === Resolution of Qualified Identifiers
 
 The following rules govern the resolution of
-<<Scoping-of-Names_Qualified-Identifiers,qualified identifiers>>, i.e., 
+<<Scoping-of-Names_Qualified-Identifiers,qualified identifiers>>, i.e.,
 associating qualified identifiers with definitions:
 
 . If a qualified identifier is an identifier, then resolve it as
@@ -264,10 +269,10 @@ following:
 
 .. Recursively resolve _Q_.
 
-.. If _Q_ refers to a <<Definitions,definition>> 
+.. If _Q_ refers to a <<Definitions,definition>>
 with a brace-delimited body, then do the following:
 
-... Determine the <<Scoping-of-Names_Name-Groups,name group>> _S_ of _Q_ `.` 
+... Determine the <<Scoping-of-Names_Name-Groups,name group>> _S_ of _Q_ `.`
 _I_.
 
 ... Look in _D_ for a definition with identifier _I_ in name group _S_.

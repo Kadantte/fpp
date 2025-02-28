@@ -11,6 +11,7 @@ Introduction.adoc
 Command-Specifiers.adoc
 Component-Instance-Specifiers.adoc
 Connection-Graph-Specifiers.adoc
+Container-Specifiers.adoc
 Event-Specifiers.adoc
 Include-Specifiers.adoc
 Init-Specifiers.adoc
@@ -19,6 +20,10 @@ Location-Specifiers.adoc
 Parameter-Specifiers.adoc
 Port-Instance-Specifiers.adoc
 Port-Matching-Specifiers.adoc
+Record-Specifiers.adoc
+State-Machine-Instance-Specifiers.adoc
 Telemetry-Channel-Specifiers.adoc
+Telemetry-Packet-Set-Specifiers.adoc
+Telemetry-Packet-Specifiers.adoc
 Topology-Import-Specifiers.adoc
 "

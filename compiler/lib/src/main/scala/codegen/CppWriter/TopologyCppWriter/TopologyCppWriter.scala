@@ -19,27 +19,34 @@ case class TopologyCppWriter(
       s"${data.name} topology",
       fileName,
       includeGuard,
-      getMembers
+      getMembers,
+      s.toolName
     )
   }
 
-  private def getMembers: List[CppDoc.Member] = {
-    val hppIncludes = {
+  private def getMembers: List[CppDoc.Member] =
+    List.concat(
+      getIncludeMembers,
+      getComponentInstanceMembers,
+      getTopologyMembers
+    )
+
+  private def getComponentInstanceMembers =
+    TopComponentInstances(s, aNode).getMembers
+
+  private def getIncludeMembers: List[CppDoc.Member] = {
+    val hpp = {
       val strings = (
         TopComponentIncludes(s, aNode).getHeaderStrings :+
         CppWriter.headerString(
           s.getRelativePath(s"${name}TopologyDefs.hpp").toString
         )
       ).sorted
-      CppWriter.linesMember(Line.blank :: strings.map(line))
+      linesMember(Line.blank :: strings.map(line))
     }
-    val hppLines = CppWriter.linesMember(
-      TopConstants(s, aNode).getLines ++
-      TopComponentInstances(s, aNode).getHppLines
-    )
-    val cppIncludes = {
+    val cpp = {
       val fileName = s"${ComputeCppFiles.FileNames.getTopology(name)}.hpp"
-      CppWriter.linesMember(
+      linesMember(
         List(
           Line.blank,
           CppWriter.headerLine(s.getRelativePath(fileName).toString)
@@ -47,26 +54,23 @@ case class TopologyCppWriter(
         CppDoc.Lines.Cpp
       )
     }
-    val cppLines = CppWriter.linesMember(
-      Line.blank ::
-      List(
-        wrapInAnonymousNamespace(
-          addBlankPostfix(
-            TopConfigObjects(s, aNode).getLines,
-          )
-        ),
-        TopComponentInstances(s, aNode).getCppLines
-      ).flatten,
+    List(hpp, cpp)
+  }
+
+  private def getTopologyMembers: List[CppDoc.Member] = {
+    val hppLines = linesMember(
+      TopConstants(s, aNode).getLines ++
+      TopConfigObjects(s, aNode).getHppLines
+    )
+    val cppLines = linesMember(
+      Line.blank :: addBlankPostfix(TopConfigObjects(s, aNode).getCppLines),
       CppDoc.Lines.Cpp
     )
     val (helperFnNames, helperFns) = TopHelperFns(s, aNode).getMembers
-    val setupTeardownFns = TopSetupTeardownFns(s, aNode, helperFnNames).
-      getMembers
+    val setupTeardownFns =
+      TopSetupTeardownFns(s, aNode, helperFnNames).getMembers
     val defs = hppLines :: cppLines :: (helperFns ++ setupTeardownFns)
-    List(
-      List(hppIncludes, cppIncludes),
-      CppWriter.wrapInNamespaces(namespaceIdentList, defs)
-    ).flatten
+    wrapInNamespaces(namespaceIdentList, defs)
   }
 
 }

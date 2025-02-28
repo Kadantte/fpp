@@ -31,9 +31,22 @@ object CheckComponentDefs
   ) = {
     val data = aNode._2.data
     for {
-      opcodeOpt <- a.getIntValueOpt(data.opcode)
+      opcodeOpt <- a.getNonnegativeBigIntValueOpt(data.opcode)
       command <- Command.fromSpecCommand(a, aNode)
       component <- a.component.get.addCommand(opcodeOpt, command)
+    }
+    yield a.copy(component = Some(component))
+  }
+
+  override def specContainerAnnotatedNode(
+    a: Analysis,
+    aNode: Ast.Annotated[AstNode[Ast.SpecContainer]]
+  ) = {
+    val data = aNode._2.data
+    for {
+      idOpt <- a.getNonnegativeBigIntValueOpt(data.id)
+      container <- Container.fromSpecContainer(a, aNode)
+      component <- a.component.get.addContainer(idOpt, container)
     }
     yield a.copy(component = Some(component))
   }
@@ -44,7 +57,7 @@ object CheckComponentDefs
   ) = {
     val data = aNode._2.data
     for {
-      idOpt <- a.getIntValueOpt(data.id)
+      idOpt <- a.getNonnegativeBigIntValueOpt(data.id)
       event <- Event.fromSpecEvent(a, aNode)
       component <- a.component.get.addEvent(idOpt, event)
     }
@@ -70,8 +83,8 @@ object CheckComponentDefs
     val data = aNode._2.data
     val component = a.component.get
     for {
-      idOpt <- a.getIntValueOpt(data.id)
-      param_defaultOpcode <- Param.fromSpecParam(a, aNode, component.defaultOpcode)
+      idOpt <- a.getNonnegativeBigIntValueOpt(data.id)
+      param_defaultOpcode <- Param.fromSpecParam(a, aNode, component.defaultOpcode.toInt)
       component <- {
         val (param, defaultOpcode) = param_defaultOpcode
         component.copy(defaultOpcode = defaultOpcode).addParam(idOpt, param)
@@ -101,13 +114,36 @@ object CheckComponentDefs
     Right(a.copy(component = Some(component1)))
   }
 
+  override def specRecordAnnotatedNode(
+    a: Analysis,
+    aNode: Ast.Annotated[AstNode[Ast.SpecRecord]]
+  ) = {
+    val data = aNode._2.data
+    for {
+      idOpt <- a.getNonnegativeBigIntValueOpt(data.id)
+      record <- Record.fromSpecRecord(a, aNode)
+      component <- a.component.get.addRecord(idOpt, record)
+    }
+    yield a.copy(component = Some(component))
+  }
+
+  override def specStateMachineInstanceAnnotatedNode(
+    a: Analysis,
+    aNode: Ast.Annotated[AstNode[Ast.SpecStateMachineInstance]]
+  ): Result.Result[Analysis] = {
+    for {
+      stateMachineInstance <- StateMachineInstance.fromSpecStateMachine(a, aNode)
+      component <- a.component.get.addStateMachineInstance(stateMachineInstance)
+    } yield a.copy(component = Some(component))
+  }
+
   override def specTlmChannelAnnotatedNode(
     a: Analysis,
     aNode: Ast.Annotated[AstNode[Ast.SpecTlmChannel]]
   ) = {
     val data = aNode._2.data
     for {
-      idOpt <- a.getIntValueOpt(data.id)
+      idOpt <- a.getNonnegativeBigIntValueOpt(data.id)
       tlmChannel <- TlmChannel.fromSpecTlmChannel(a, aNode)
       component <- a.component.get.addTlmChannel(idOpt, tlmChannel)
     }

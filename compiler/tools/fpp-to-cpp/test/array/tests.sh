@@ -1,0 +1,13 @@
+tests="
+abs_type
+alias_type
+builtin_type
+component
+duplicate
+enum
+header_path
+primitive
+single_element
+string
+struct
+"

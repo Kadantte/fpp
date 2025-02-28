@@ -75,7 +75,7 @@ class ParserSpec extends AnyWordSpec {
         "active component C { }",
         "passive component C { }",
         "queued component C { }",
-        """active component C { 
+        """active component C {
           constant a = 0
           struct S { x: U32 }
           async command C
@@ -87,6 +87,9 @@ class ParserSpec extends AnyWordSpec {
           event E severity activity low format "Event E"
           include "a.fpp"
           internal port P
+          state machine S
+          state machine instance s1: S
+          state machine instance s2: S
         }""",
         """active component C {
           @ Pre
@@ -129,7 +132,7 @@ class ParserSpec extends AnyWordSpec {
       List(
         "enum E { X, Y }",
         "enum E { X = 0, Y = 1 }",
-        """enum E { 
+        """enum E {
           @ Pre
           X = 0 @< Post
           @ Pre
@@ -144,7 +147,7 @@ class ParserSpec extends AnyWordSpec {
       Parser.defModule,
       List(
         "module M {}",
-        """module M { 
+        """module M {
           active component C {}
           instance i: C base id 0x100
           constant a = 0
@@ -154,6 +157,7 @@ class ParserSpec extends AnyWordSpec {
           topology T {}
           locate component C at "c.fpp"
           type T
+          type K = T
           array A = [10] U32
           enum E { X, Y }
           include "a.fpp"
@@ -178,6 +182,15 @@ class ParserSpec extends AnyWordSpec {
     )
   }
 
+  "def state machine OK" should {
+    parseAllOK(
+      Parser.defStateMachine,
+      List(
+        "state machine S",
+      )
+    )
+  }
+
   "def struct OK" should {
     parseAllOK(
       Parser.defStruct,
@@ -187,12 +200,45 @@ class ParserSpec extends AnyWordSpec {
         "struct S { x: U32 format \"{} steps\", y: F32 format \"{} m/s\" }",
         "struct S { x: U32, y: F32 } default { x = 1, y = 2 }",
         "struct S { x: [3] U32 }",
-        """struct S { 
+        """struct S {
           @ Pre
           x: U32 @< Post
           @ Pre
           y: F32 @< Post
         }""",
+      )
+    )
+  }
+
+  "def tlmPacket OK" should {
+    parseAllOK(
+      Parser.specTlmPacket,
+      List(
+        """packet P group 0 {
+             include "file.fpp"
+             a.b
+             c.d
+        }""",
+        """packet P id 0 group 0 {}"""
+      )
+    )
+  }
+
+  "def tlmPacketSet OK" should {
+    parseAllOK(
+      Parser.specTlmPacketSet,
+      List(
+        """telemetry packets P {
+             @ P1
+             packet P1 group 0 {
+               include "file.fpp"
+               a.b
+               c.d
+             }
+             packet P2 id 1 group 0 {}
+           }""",
+        """telemetry packets P {} omit {}""",
+        """telemetry packets P {} omit { a.b, c.d }"""
       )
     )
   }
@@ -212,6 +258,9 @@ class ParserSpec extends AnyWordSpec {
           @ Pre
           instance i @< Post
         }""",
+        """topology T {
+          telemetry packets P {}
+        }"""
       )
     )
   }
@@ -378,6 +427,17 @@ class ParserSpec extends AnyWordSpec {
     )
   }
 
+  "spec container OK" should {
+    parseAllOK(
+      Parser.specContainer,
+      List(
+        "product container C",
+        "product container C id 0x100",
+        "product container C id 0x100 default priority 10"
+      )
+    )
+  }
+
   "spec event OK" should {
     parseAllOK(
       Parser.specEvent,
@@ -468,12 +528,19 @@ class ParserSpec extends AnyWordSpec {
     parseAllOK(
       Parser.specPortInstance,
       List(
+        "async product recv port p",
         "command recv port p",
         "command reg port p",
         "command resp port p",
         "event port p",
+        "guarded product recv port p",
         "param get port p",
         "param set port p",
+        "product get port p",
+        "product recv port p",
+        "product request port p",
+        "product send port p",
+        "sync product recv port p",
         "telemetry port p",
         "text event port p",
         "time get port p",
@@ -486,6 +553,26 @@ class ParserSpec extends AnyWordSpec {
       Parser.specPortMatching,
       List(
         "match p1 with p2",
+      )
+    )
+  }
+
+  "spec record OK" should {
+    parseAllOK(
+      Parser.specRecord,
+      List(
+        "product record R: U32",
+        "product record R: U32 array",
+        "product record R: U32 id 0x100"
+      )
+    )
+  }
+
+  "spec state machine instance OK" should {
+    parseAllOK(
+      Parser.specStateMachineInstance,
+      List(
+        "state machine instance s: S",
       )
     )
   }
@@ -648,9 +735,9 @@ class ParserSpec extends AnyWordSpec {
 
   def parseError[T](p: Parser.Parser[T], s: String): Unit = {
     Parser.parseString(p)(s) match {
-      case Right(r) => { 
+      case Right(r) => {
         Console.err.println(s"parsed $r")
-        assert(false) 
+        assert(false)
       }
       case Left(_) => ()
     }
@@ -659,7 +746,7 @@ class ParserSpec extends AnyWordSpec {
   def parseOK[T](p: Parser.Parser[T], s: String): Unit = {
     Parser.parseString(p)(s) match {
       case Right(_) => ()
-      case Left(l) => { 
+      case Left(l) => {
         Console.err.println(s"failed with error $l")
         assert(false)
       }

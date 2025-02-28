@@ -8,6 +8,8 @@ trait TypeExpressionAnalyzer
   extends Analyzer 
   with ComponentAnalyzer
   with ModuleAnalyzer
+  with StateMachineAnalyzer
+  with TlmPacketSetAnalyzer
   with TopologyAnalyzer
 {
 
@@ -42,10 +44,21 @@ trait TypeExpressionAnalyzer
     } yield a
   }
 
+
   def typeNameNode(a: Analysis, node: AstNode[Ast.TypeName]): Result = matchTypeNameNode(a, node)
 
   override def typeNameStringNode(a: Analysis, node: AstNode[Ast.TypeName], tn: Ast.TypeNameString) =
     opt(exprNode)(a, tn.size)
+
+  override def defActionAnnotatedNode(a: Analysis, aNode: Ast.Annotated[AstNode[Ast.DefAction]]) = {
+    val (_, node, _) = aNode
+    opt(typeNameNode)(a, node.data.typeName)
+  }
+
+  override def defAliasTypeAnnotatedNode(a: Analysis, node: Ast.Annotated[AstNode[Ast.DefAliasType]]) = {
+    val (_, node1, _) = node
+    typeNameNode(a, node1.data.typeName)
+  }
 
   override def defArrayAnnotatedNode(a: Analysis, node: Ast.Annotated[AstNode[Ast.DefArray]]) = {
     val (_, node1, _) = node
@@ -86,6 +99,12 @@ trait TypeExpressionAnalyzer
     } yield a
   }
 
+  override def defGuardAnnotatedNode(a: Analysis, aNode: Ast.Annotated[AstNode[Ast.DefGuard]]) = {
+    val (_, node, _) = aNode
+    val data = node.data
+    opt(typeNameNode)(a, node.data.typeName)
+  }
+
   override def defPortAnnotatedNode(a: Analysis, node: Ast.Annotated[AstNode[Ast.DefPort]]) = {
     val (_, node1, _) = node
     val data = node1.data
@@ -93,6 +112,12 @@ trait TypeExpressionAnalyzer
       a <- visitList(a, data.params, formalParamNode)
       a <- opt(typeNameNode)(a, data.returnType)
     } yield a
+  }
+
+  override def defSignalAnnotatedNode(a: Analysis, aNode: Ast.Annotated[AstNode[Ast.DefSignal]]) = {
+    val (_, node, _) = aNode
+    val data = node.data
+    opt(typeNameNode)(a, data.typeName)
   }
 
   override def defStructAnnotatedNode(a: Analysis, node: Ast.Annotated[AstNode[Ast.DefStruct]]) = {
@@ -148,6 +173,18 @@ trait TypeExpressionAnalyzer
     }
   }
 
+  override def specContainerAnnotatedNode(
+    a: Analysis,
+    aNode: Ast.Annotated[AstNode[Ast.SpecContainer]]
+  ) = {
+    val (_, node, _) = aNode
+    val data = node.data
+    for {
+      a <- opt(exprNode)(a, data.id)
+      a <- opt(exprNode)(a, data.defaultPriority)
+    } yield a
+  }
+
   override def specEventAnnotatedNode(a: Analysis, node: Ast.Annotated[AstNode[Ast.SpecEvent]]) = {
     val (_, node1, _) = node
     val data = node1.data
@@ -193,8 +230,30 @@ trait TypeExpressionAnalyzer
           a <- opt(exprNode)(a, general.size)
           a <- opt(exprNode)(a, general.priority)
         } yield a
-      case _ => Right(a)
+      case special : Ast.SpecPortInstance.Special =>
+        opt(exprNode)(a, special.priority)
     }
+  }
+
+  override def specRecordAnnotatedNode(
+    a: Analysis,
+    aNode: Ast.Annotated[AstNode[Ast.SpecRecord]]
+  ) = {
+    val (_, node, _) = aNode
+    val data = node.data
+    for {
+      a <- typeNameNode(a, data.recordType)
+      a <- opt(exprNode)(a, data.id)
+    } yield a
+  }
+
+  override def specStateMachineInstanceAnnotatedNode(
+    a: Analysis,
+    aNode: Ast.Annotated[AstNode[Ast.SpecStateMachineInstance]]
+  ) = {
+    val (_, node, _) = aNode
+    val data = node.data
+    opt(exprNode)(a, data.priority)
   }
 
   override def specTlmChannelAnnotatedNode(a: Analysis, node: Ast.Annotated[AstNode[Ast.SpecTlmChannel]]) = {
@@ -209,6 +268,15 @@ trait TypeExpressionAnalyzer
       a <- opt(exprNode)(a, data.id)
       a <- visitList(a, data.low, limit)
       a <- visitList(a, data.high, limit)
+    } yield a
+  }
+
+  override def specTlmPacketAnnotatedNode(a: Analysis, aNode: Ast.Annotated[AstNode[Ast.SpecTlmPacket]]) = {
+    val (_, node, _) = aNode
+    val data = node.data
+    for {
+      a <- opt(exprNode)(a, data.id)
+      a <- exprNode(a, data.group)
     } yield a
   }
 

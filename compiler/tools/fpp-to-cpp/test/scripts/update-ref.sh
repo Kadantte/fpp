@@ -37,12 +37,68 @@ done > default-update-ref.sh
 
 move_cpp()
 {
+  if test $# -ne 1
+  then
+    echo 'usage: move_cpp file' 1>&2
+    exit 1
+  fi
+  file=$1
+  for suffix in hpp cpp
+  do
+    mv $file'Ac.'$suffix $file'Ac.ref.'$suffix
+  done
+}
+
+move_cpp_suffix()
+{
+  if test $# -lt 1 || test $# -gt 2
+  then
+    echo 'usage: move_cpp_suffix file [suffix]' 1>&2
+    exit 1
+  fi
   file=$1
   target_suffix=$2
   for suffix in hpp cpp
   do
-    cp $file'Ac.'$suffix $file'Ac'$target_suffix'.ref.'$suffix
+    mv $file'Ac.'$suffix $file'Ac'$target_suffix'.ref.'$suffix
   done
+}
+
+move_template()
+{
+  file=$1
+  for suffix in hpp cpp
+  do
+    remove_author < $file'.template.'$suffix > $file'.template.ref.'$suffix
+  done
+}
+
+move_test()
+{
+  file=$1
+  for suffix in hpp cpp
+  do
+    mv $file'TesterBase.'$suffix $file'TesterBase.ref.'$suffix
+    mv $file'GTestBase.'$suffix $file'GTestBase.ref.'$suffix
+  done
+  if test -f $file'TesterHelpers.cpp'
+  then
+    mv $file'TesterHelpers.cpp' $file'TesterHelpers.ref.cpp'
+  fi
+}
+
+move_test_template()
+{
+  file=$1
+  for suffix in hpp cpp
+  do
+    remove_author < $file'Tester.'$suffix > $file'Tester.ref.'$suffix
+  done
+  if test -f $file'TesterHelpers.cpp'
+  then
+    mv $file'TesterHelpers.cpp' $file'TesterHelpers.ref.cpp'
+  fi
+  remove_author < $file'TestMain.cpp' > $file'TestMain.ref.cpp'
 }
 
 . ./update-ref.sh

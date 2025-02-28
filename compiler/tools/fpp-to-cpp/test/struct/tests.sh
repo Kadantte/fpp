@@ -1,0 +1,15 @@
+tests="
+abs_type
+alias_type
+array
+component
+default
+duplicate
+empty
+enum
+format
+include
+modules
+primitive
+string
+"

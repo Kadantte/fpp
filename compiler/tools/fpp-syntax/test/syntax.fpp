@@ -5,9 +5,17 @@ module DefinitionsAndSpecifiers {
   type T
   @< Abstract type definition
 
+  @ Type alias definition
+  type TA = T
+  @< Type alias definition
+
   @ Array definition
   array A = [10] U32 default 0 format "{} counts"
   @< Array definition
+
+  @ State machine outside a component
+  state machine SO
+  @< State machine outside a component
 
   @ Component definition
   active component C {
@@ -17,6 +25,14 @@ module DefinitionsAndSpecifiers {
     struct S { x: [3] U32, y: F32, z: string }
     enum E { X, Y, Z }
 
+    @ Container specifier
+    product container C id 0x00 default priority 10
+    @< Container specifier
+
+    @ Record specifier
+    product record R: U32 array id 0x00
+    @< Record specifier
+
     @ Command specifier
     async command C(a: U32, b: F32) opcode 0x00 priority 10 assert
     @< Command specifier
@@ -24,7 +40,7 @@ module DefinitionsAndSpecifiers {
     @ Parameter specifier
     param P: U32 default 0 id 0x00 set opcode 0x01 save opcode 0x02
     @< Parameter specifier
-    
+
     @ General port instance specifier
     sync input port p1: [10] P priority 10 assert
     @< General port instance specifier
@@ -32,6 +48,26 @@ module DefinitionsAndSpecifiers {
     @ Special port instance specifier
     command recv port cmdIn
     @< Special port instance specifier
+
+    @ Async product receive port
+    async product recv port productRecvIn priority 10 assert
+    @< Async product receive port
+
+    @ Internal Component State machine definition
+    state machine S
+    @< State machine definition
+
+    @ State machine instance 1
+    state machine instance s1: S priority 10 drop
+    @< State machine instance 1
+
+    @ State machine instance 2
+    state machine instance s2: S
+    @< State machine instance 2
+
+    @ State machine for outside definition
+    state machine instance so: SO
+    @< State machine for outside definition
 
     output port p2: [10] P
     @ Port matching specifier
@@ -76,12 +112,12 @@ module DefinitionsAndSpecifiers {
   @< Constant definition
 
   @ Enum definition
-  enum E : I32 { 
+  enum E : I32 {
     @ X
     X = 1
     @< X
     @ Y
-    Y = 2 
+    Y = 2
     @< Y
   }
   @< Enum definition
@@ -103,12 +139,12 @@ module DefinitionsAndSpecifiers {
   @< Port definition
 
   @ Struct definition
-  struct S { 
+  struct S {
     @ x
     x: U32 format "{} s"
     @< x
     @ y
-    y: F32 format "{} m/s" 
+    y: F32 format "{} m/s"
     @< y
   }
   @< Struct definition
@@ -125,7 +161,11 @@ module DefinitionsAndSpecifiers {
     @< Private instance specifier
 
     @ Direct connection graph specifier
-    connections C { i1.p[0] -> i2.p[1] }
+    connections C {
+      i1.p[0] -> i2.p[1]
+      unmatched i1.p1[0] -> i2.p2[0]
+      unmatched i1.p1 -> i2.p2
+    }
     @< Direct connection graph specifier
 
     @ Graph pattern specifier
@@ -135,6 +175,25 @@ module DefinitionsAndSpecifiers {
     @ Topology import specifier
     import T1
     @< Topology import specifier
+
+    @ Telemetry packet group
+    telemetry packets P {
+
+      @ Telemetry packet
+      packet P1 id 0 group 0 {
+        i1.c1
+        i2.c2
+      }
+      @< Telemetry packet
+
+      @ Include specifier
+      include "packet.fppi"
+      @< Include specifier
+
+    } omit {
+      i3.c3
+    }
+    @< Telemetry packet group
 
   }
   @< Topology definition

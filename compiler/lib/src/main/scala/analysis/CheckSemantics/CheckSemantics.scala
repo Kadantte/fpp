@@ -28,7 +28,9 @@ object CheckSemantics {
       a <- CheckComponentDefs.visitList(a, tul, CheckComponentDefs.transUnit)
       a <- CheckComponentInstanceDefs.visitList(a, tul, CheckComponentInstanceDefs.transUnit)
       _ <- CheckComponentInstanceDefs.checkIdRanges(a)
+      a <- CheckStateMachineDefs.visitList(a, tul, CheckStateMachineDefs.transUnit)
       a <- CheckTopologyDefs.visitList(a, tul, CheckTopologyDefs.transUnit)
+      a <- ConstructDictionaryMap.visitList(a, tul, ConstructDictionaryMap.transUnit)
       a <- BuildSpecLocMap.visitList(a, tul, BuildSpecLocMap.transUnit)
       a <- CheckSpecLocs.visitList(a, tul, CheckSpecLocs.transUnit)
     }

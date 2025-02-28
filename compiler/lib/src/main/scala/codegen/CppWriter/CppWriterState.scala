@@ -1,7 +1,8 @@
 package fpp.compiler.codegen
 
-import fpp.compiler.analysis._
-import fpp.compiler.util._
+import fpp.compiler.analysis.*
+import fpp.compiler.util.*
+import fpp.compiler.codegen.CppWriterState.builtInTypes
 
 /** C++ Writer state */
 case class CppWriterState(
@@ -15,23 +16,11 @@ case class CppWriterState(
   pathPrefixes: List[String] = Nil,
   /** The default string size */
   defaultStringSize: Int = CppWriterState.defaultDefaultStringSize,
+  /** The name of the tool using the CppWriter */
+  toolName: Option[String] = None,
   /** The map from strings to locations */
-  locationMap: Map[String, Option[Location]] = Map(),
+  locationMap: Map[String, Option[Location]] = Map()
 ) {
-
-  /** Adds the component name prefix to a name.
-   *  This is to work around the fact that we can't declare
-   *  constants inside component classes, because we are using
-   *  F Prime XML to generate the component classes. */
-  def addComponentNamePrefix(symbol: Symbol): String = {
-    val name = symbol.getUnqualifiedName
-    a.parentSymbolMap.get(symbol) match {
-      case Some(componentSymbol: Symbol.Component) =>
-        val componentName = componentSymbol.getUnqualifiedName
-        s"${componentName}_$name"
-      case _ => name
-    }
-  }
 
   /** Removes the longest prefix from a Java path */
   def removeLongestPathPrefix(path: File.JavaPath): File.JavaPath =
@@ -55,14 +44,14 @@ case class CppWriterState(
 
   /** Constructs a C++ identifier from a qualified symbol name */
   def identFromQualifiedSymbolName(s: Symbol): String =
-    CppWriter.identFromQualifiedName(a.getQualifiedName(s))
+    CppWriterState.identFromQualifiedName(a.getQualifiedName(s))
 
   /** Constructs an include guard from a qualified name and a kind */
   def includeGuardFromQualifiedName(s: Symbol, name: String): String = {
     val guard = a.getEnclosingNames(s) match {
       case Nil => name
       case names =>
-        val prefix = CppWriter.identFromQualifiedName(
+        val prefix = CppWriterState.identFromQualifiedName(
           Name.Qualified.fromIdentList(names)
         )
         s"${prefix}_$name"
@@ -72,17 +61,16 @@ case class CppWriterState(
 
   /** Gets the C++ namespace associated with a symbol */
   def getNamespace(symbol: Symbol): Option[String] =
-    a.parentSymbolMap.get(symbol).map(
-      s => CppWriter.writeQualifiedName(a.getQualifiedName(s))
-    )
+    getNamespaceIdentList(symbol) match {
+      case Nil => None
+      case identList => Some(identList.mkString("::"))
+    }
 
   /** Gets the list of identifiers representing the namespace
    *  associated with a symbol */
-  def getNamespaceIdentList(symbol: Symbol): List[String] =
-    a.parentSymbolMap.get(symbol) match {
-      case Some(s) => a.getQualifiedName(s).toIdentList
-      case None => Nil
-    }
+  def getNamespaceIdentList(symbol: Symbol): List[String] = {
+    removeComponentQualifiers(a.parentSymbolMap.get(symbol), Nil)
+  }
 
   /** Gets the unqualified name associated with a symbol.
    *  If a symbol is defined in a component, then we prefix its name
@@ -98,21 +86,6 @@ case class CppWriterState(
 
   /** Write an FPP symbol as C++ */
   def writeSymbol(sym: Symbol): String = {
-    // Skip component names in qualifiers
-    // Those appear in the prefixes of definition names
-    def removeComponentQualifiers(
-      symOpt: Option[Symbol],
-      out: List[String]
-    ): List[String] = symOpt match {
-      case None => out
-      case Some(sym) =>
-        val psOpt = a.parentSymbolMap.get(sym)
-        val out1 = sym match {
-          case cs: Symbol.Component => out
-          case _ => getName(sym) :: out
-        }
-        removeComponentQualifiers(psOpt, out1)
-    }
     val qualifiedName = sym match {
       // For component symbols, use the qualified name
       case cs: Symbol.Component => a.getQualifiedName(cs)
@@ -122,7 +95,96 @@ case class CppWriterState(
         Name.Qualified.fromIdentList(identList)
       }
     }
-    CppWriter.writeQualifiedName(qualifiedName)
+    CppWriterState.writeQualifiedName(qualifiedName)
+  }
+
+  /** Write an FPP symbol as a C++ identifier */
+  def writeSymbolAsIdent(sym: Symbol): String =
+    writeSymbol(sym).replaceAll("::", "_")
+
+  // Skip component names in qualifiers
+  // Those appear in the prefixes of definition names
+  private def removeComponentQualifiers(
+    symOpt: Option[Symbol],
+    out: List[String]
+  ): List[String] = symOpt match {
+    case None => out
+    case Some(sym) =>
+      val psOpt = a.parentSymbolMap.get(sym)
+      val out1 = sym match {
+        case _: Symbol.Component => out
+        case _ => getName(sym) :: out
+      }
+      removeComponentQualifiers(psOpt, out1)
+  }
+
+  /** Get an include path for a symbol and a file name base */
+  def getIncludePath(
+    sym: Symbol,
+    fileNameBase: String
+  ): String = {
+    val loc = sym.getLoc.tuLocation
+    val fullPath = loc.getNeighborPath(fileNameBase)
+    val path = removeLongestPathPrefix(fullPath)
+    s"${path.toString}.hpp"
+  }
+
+  /** Write include directives for autocoded files */
+  def writeIncludeDirectives(usedSymbols: Iterable[Symbol]): List[String] = {
+    def getIncludeFiles(sym: Symbol): Option[String] = {
+      val name = getName(sym)
+      for {
+        fileName <- sym match {
+          case _: Symbol.AbsType =>
+              if isBuiltInType(name) then None else Some(name)
+          case at: Symbol.AliasType =>
+            // TODO(tumbar) We are not generating the type alias definitions in C++
+            // yet. We need to include the definitions for the referenced type for now.
+            a.useDefMap.get(at.node._2.data.typeName.id) match {
+              case Some(refSym) => return getIncludeFiles(refSym)
+              // This is probably a builtin primitive
+              case None => None
+            }
+          case _: Symbol.Array => Some(
+            ComputeCppFiles.FileNames.getArray(name)
+          )
+          case _: Symbol.Component => Some(
+            ComputeCppFiles.FileNames.getComponent(name)
+          )
+          case _: Symbol.Enum => Some(
+            ComputeCppFiles.FileNames.getEnum(name)
+          )
+          case _: Symbol.Port => Some(
+            ComputeCppFiles.FileNames.getPort(name)
+          )
+          case stateMachine: Symbol.StateMachine =>
+            val kind = StateMachine.getSymbolKind(stateMachine)
+            Some(ComputeCppFiles.FileNames.getStateMachine(name, kind))
+          case _: Symbol.Struct => Some(
+            ComputeCppFiles.FileNames.getStruct(name)
+          )
+          case _: Symbol.Topology => Some(
+            ComputeCppFiles.FileNames.getTopology(name)
+          )
+          case _ => None
+        }
+      }
+      yield getIncludePath(sym, fileName)
+    }
+
+    usedSymbols.map(getIncludeFiles).filter(_.isDefined).map(_.get).map(CppWriterState.headerString).toList
+  }
+
+  /** Is t a built-in type? */
+  def isBuiltInType(typeName: String): Boolean = builtInTypes.contains(typeName)
+
+  /** Is t a primitive type (not serializable)? */
+  def isPrimitive(t: Type, typeName: String): Boolean  = isBuiltInType(typeName) || t.getUnderlyingType.isPrimitive
+
+  /** Is t a string type? */
+  def isStringType(t: Type) = t.getUnderlyingType match {
+    case _: Type.String => true
+    case _ => false
   }
 
 }
@@ -136,18 +198,42 @@ object CppWriterState {
    *  default values */
   val zero: Value.Integer = Value.Integer(0)
   val builtInTypes: Map[String,Value.Integer] = Map(
-    "FwBuffSizeType" -> zero,
     "FwChanIdType" -> zero,
+    "FwDpIdType" -> zero,
+    "FwDpPriorityType" -> zero,
     "FwEnumStoreType" -> zero,
     "FwEventIdType" -> zero,
+    "FwIndexType" -> zero,
     "FwOpcodeType" -> zero,
     "FwPacketDescriptorType" -> zero,
     "FwPrmIdType" -> zero,
+    "FwSignedSizeType" -> zero,
+    "FwSizeStoreType" -> zero,
+    "FwSizeType" -> zero,
     "FwTimeBaseStoreType" -> zero,
     "FwTimeContextStoreType" -> zero,
-    "NATIVE_INT_TYPE" -> zero,
-    "NATIVE_UINT_TYPE" -> zero,
-    "POINTER_CAST" -> zero,
+    "FwTlmPacketizeIdType" -> zero,
+    "FwTraceIdType" -> zero,
   )
+
+  /** Construct a header string */
+  def headerString(s: String): String = {
+    val q = "\""
+    s"#include $q$s$q"
+  }
+
+  /** Constructs a C++ identifier from a qualified state machine symbol name */
+  def identFromQualifiedSmSymbolName(
+    sma: StateMachineAnalysis,
+    s: StateMachineSymbol
+  ): String = identFromQualifiedName(sma.getQualifiedName(s))
+
+  /** Constructs a C++ identifier from a qualified name */
+  def identFromQualifiedName(name: Name.Qualified): String =
+    name.toString.replaceAll("\\.", "_")
+
+  /** Writes a qualified name */
+  def writeQualifiedName(name: Name.Qualified): String =
+    name.toString.replaceAll("\\.", "::")
 
 }

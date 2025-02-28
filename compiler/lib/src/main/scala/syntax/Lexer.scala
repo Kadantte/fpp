@@ -99,7 +99,27 @@ object Lexer extends RegexParsers {
     def apply(in: Input) = p(in) match {
       case s @ Success(out, in1) =>
         if (in1.atEnd) s
-        else Failure("illegal character", dropWhile(in1, _ == ' '))
+        else {
+          // We hit an illegal character
+          val in2 = dropWhile(in1, _ == ' ')
+          val c = in2.first
+          val errMsg = {
+            // Print out the unicode value, in case the console can't
+            // display it as a character
+            val prefix =
+              s"illegal character (unicode value ${c.toInt}, hex 0x${c.toInt.toHexString})"
+            // Generate a special error message for tab characters
+            // These are especially tricky and also somewhat common
+            if (c == '\t')
+              List(
+                prefix,
+                "note: embedded tab characters are not allowed in FPP source files",
+                "try configuring your editor to convert tabs to spaces"
+              ).mkString("\n")
+            else prefix
+          }
+          Failure(errMsg, in2)
+        }
       case other => other
     }
   }
@@ -227,6 +247,7 @@ object Lexer extends RegexParsers {
     ("U32", (u: Unit) => Token.U32()),
     ("U64", (u: Unit) => Token.U64()),
     ("U8", (u: Unit) => Token.U8()),
+    ("action", (u: Unit) => Token.ACTION()),
     ("active", (u: Unit) => Token.ACTIVE()),
     ("activity", (u: Unit) => Token.ACTIVITY()),
     ("always", (u: Unit) => Token.ALWAYS()),
@@ -238,56 +259,78 @@ object Lexer extends RegexParsers {
     ("block", (u: Unit) => Token.BLOCK()),
     ("bool", (u: Unit) => Token.BOOL()),
     ("change", (u: Unit) => Token.CHANGE()),
+    ("choice", (u: Unit) => Token.CHOICE()),
     ("command", (u: Unit) => Token.COMMAND()),
     ("component", (u: Unit) => Token.COMPONENT()),
     ("connections", (u: Unit) => Token.CONNECTIONS()),
     ("constant", (u: Unit) => Token.CONSTANT()),
+    ("container", (u: Unit) => Token.CONTAINER()),
     ("cpu", (u: Unit) => Token.CPU()),
     ("default", (u: Unit) => Token.DEFAULT()),
     ("diagnostic", (u: Unit) => Token.DIAGNOSTIC()),
+    ("do", (u: Unit) => Token.DO()),
     ("drop", (u: Unit) => Token.DROP()),
+    ("else", (u: Unit) => Token.ELSE()),
+    ("enter", (u: Unit) => Token.ENTER()),
+    ("entry", (u: Unit) => Token.ENTRY()),
     ("enum", (u: Unit) => Token.ENUM()),
     ("event", (u: Unit) => Token.EVENT()),
+    ("exit", (u: Unit) => Token.EXIT()),
     ("false", (u: Unit) => Token.FALSE()),
     ("fatal", (u: Unit) => Token.FATAL()),
     ("format", (u: Unit) => Token.FORMAT()),
     ("get", (u: Unit) => Token.GET()),
+    ("group", (u: Unit) => Token.GROUP()),
+    ("guard", (u: Unit) => Token.GUARD()),
     ("guarded", (u: Unit) => Token.GUARDED()),
     ("health", (u: Unit) => Token.HEALTH()),
     ("high", (u: Unit) => Token.HIGH()),
+    ("hook", (u: Unit) => Token.HOOK()),
     ("id", (u: Unit) => Token.ID()),
+    ("if", (u: Unit) => Token.IF()),
     ("import", (u: Unit) => Token.IMPORT()),
     ("include", (u: Unit) => Token.INCLUDE()),
+    ("initial", (u: Unit) => Token.INITIAL()),
     ("input", (u: Unit) => Token.INPUT()),
     ("instance", (u: Unit) => Token.INSTANCE()),
     ("internal", (u: Unit) => Token.INTERNAL()),
     ("locate", (u: Unit) => Token.LOCATE()),
     ("low", (u: Unit) => Token.LOW()),
+    ("machine", (u: Unit) => Token.MACHINE()),
     ("match", (u: Unit) => Token.MATCH()),
     ("module", (u: Unit) => Token.MODULE()),
+    ("omit", (u: Unit) => Token.OMIT()),
     ("on", (u: Unit) => Token.ON()),
     ("opcode", (u: Unit) => Token.OPCODE()),
     ("orange", (u: Unit) => Token.ORANGE()),
     ("output", (u: Unit) => Token.OUTPUT()),
+    ("packet", (u: Unit) => Token.PACKET()),
+    ("packets", (u: Unit) => Token.PACKETS()),
     ("param", (u: Unit) => Token.PARAM()),
     ("passive", (u: Unit) => Token.PASSIVE()),
     ("phase", (u: Unit) => Token.PHASE()),
     ("port", (u: Unit) => Token.PORT()),
     ("priority", (u: Unit) => Token.PRIORITY()),
     ("private", (u: Unit) => Token.PRIVATE()),
+    ("product", (u: Unit) => Token.PRODUCT()),
     ("queue", (u: Unit) => Token.QUEUE()),
     ("queued", (u: Unit) => Token.QUEUED()),
+    ("record", (u: Unit) => Token.RECORD()),
     ("recv", (u: Unit) => Token.RECV()),
     ("red", (u: Unit) => Token.RED()),
     ("ref", (u: Unit) => Token.REF()),
     ("reg", (u: Unit) => Token.REG()),
+    ("request", (u: Unit) => Token.REQUEST()),
     ("resp", (u: Unit) => Token.RESP()),
     ("save", (u: Unit) => Token.SAVE()),
+    ("send", (u: Unit) => Token.SEND()),
     ("serial", (u: Unit) => Token.SERIAL()),
-    ("severity", (u: Unit) => Token.SEVERITY()),
     ("set", (u: Unit) => Token.SET()),
+    ("severity", (u: Unit) => Token.SEVERITY()),
+    ("signal", (u: Unit) => Token.SIGNAL()),
     ("size", (u: Unit) => Token.SIZE()),
     ("stack", (u: Unit) => Token.STACK()),
+    ("state", (u: Unit) => Token.STATE()),
     ("string", (u: Unit) => Token.STRING()),
     ("struct", (u: Unit) => Token.STRUCT()),
     ("sync", (u: Unit) => Token.SYNC()),
@@ -298,11 +341,14 @@ object Lexer extends RegexParsers {
     ("topology", (u: Unit) => Token.TOPOLOGY()),
     ("true", (u: Unit) => Token.TRUE()),
     ("type", (u: Unit) => Token.TYPE()),
+    ("unmatched", (u: Unit) => Token.UNMATCHED()),
     ("update", (u: Unit) => Token.UPDATE()),
     ("warning", (u: Unit) => Token.WARNING()),
     ("with", (u: Unit) => Token.WITH()),
     ("yellow", (u: Unit) => Token.YELLOW()),
   )
+
+  val reservedWordSet = reservedWords.map(_._1).toSet
 
   val symbols: List[(Parser[Unit], String, Unit => Token, Parser[Unit])] = List(
     (newlinesOpt, ")", (u: Unit) => Token.RPAREN(), nothing),

@@ -16,6 +16,8 @@ sealed trait Type {
   /** Get the definition node identifier, if any */
   def getDefNodeId: Option[AstNode.Id] = None
 
+  def getUnderlyingType: Type = this
+
   /** Does this type have numeric members? */
   def hasNumericMembers: Boolean = isNumeric
 
@@ -25,6 +27,9 @@ sealed trait Type {
   /** Is this type promotable to an array type? */
   def isPromotableToArray: Boolean = isNumeric
 
+  /** Is this type displayable? */
+  def isDisplayable: Boolean = false
+
   /** Is this type a float type? */
   def isFloat: Boolean = false
 
@@ -33,6 +38,9 @@ sealed trait Type {
 
   /** Is this type a primitive type? */
   def isPrimitive: Boolean = false
+
+  /** Is this type a canonical (non-aliased) type? */
+  def isCanonical: Boolean = true
 
   /** Is this type promotable to a struct type? */
   final def isPromotableToStruct = isPromotableToArray
@@ -55,6 +63,7 @@ object Type {
   /** Primitive types */
   sealed trait Primitive extends Type {
     override def isPrimitive = true
+    def bitWidth: scala.Int
   }
 
   /** Primitive integer types */
@@ -62,6 +71,7 @@ object Type {
     extends Type with Primitive with Int
   {
     override def getDefaultValue = Some(Value.PrimitiveInt(0, kind))
+    override def isDisplayable = true
     override def toString = kind match {
       case PrimitiveInt.I8 => "I8"
       case PrimitiveInt.I16 => "I16"
@@ -71,6 +81,26 @@ object Type {
       case PrimitiveInt.U16 => "U16"
       case PrimitiveInt.U32 => "U32"
       case PrimitiveInt.U64 => "U64"
+    }
+    override def bitWidth = kind match {
+      case PrimitiveInt.I8 => 8
+      case PrimitiveInt.I16 => 16
+      case PrimitiveInt.I32 => 32
+      case PrimitiveInt.I64 => 64
+      case PrimitiveInt.U8 => 8
+      case PrimitiveInt.U16 => 16
+      case PrimitiveInt.U32 => 32
+      case PrimitiveInt.U64 => 64
+    }
+    def signedness: PrimitiveInt.Signedness = kind match {
+      case PrimitiveInt.I8 => PrimitiveInt.Signed
+      case PrimitiveInt.I16 => PrimitiveInt.Signed
+      case PrimitiveInt.I32 => PrimitiveInt.Signed
+      case PrimitiveInt.I64 => PrimitiveInt.Signed
+      case PrimitiveInt.U8 => PrimitiveInt.Unsigned
+      case PrimitiveInt.U16 => PrimitiveInt.Unsigned
+      case PrimitiveInt.U32 => PrimitiveInt.Unsigned
+      case PrimitiveInt.U64 => PrimitiveInt.Unsigned
     }
   }
 
@@ -84,6 +114,9 @@ object Type {
     case object U16 extends Kind
     case object U32 extends Kind
     case object U64 extends Kind
+    sealed trait Signedness
+    case object Signed extends Signedness
+    case object Unsigned extends Signedness
   }
 
   val I8: PrimitiveInt = PrimitiveInt(PrimitiveInt.I8)
@@ -99,9 +132,14 @@ object Type {
   case class Float(kind: Float.Kind) extends Type with Primitive {
     override def getDefaultValue = Some(Value.Float(0, kind))
     override def isFloat = true
+    override def isDisplayable = true
     override def toString = kind match {
       case Float.F32 => "F32"
       case Float.F64 => "F64"
+    }
+    override def bitWidth = kind match {
+      case Float.F32 => 32
+      case Float.F64 => 64
     }
   }
 
@@ -116,9 +154,11 @@ object Type {
 
   /** The Boolean type */
   case object Boolean extends Type with Primitive {
+    override def bitWidth = 1
     override def getDefaultValue = Some(Value.Boolean(false))
     override def toString = "bool"
     override def isPromotableToArray = true
+    override def isDisplayable = true
   }
 
   /** The type of a string */
@@ -126,6 +166,7 @@ object Type {
     override def getDefaultValue = Some(Value.String(""))
     override def toString = "string"
     override def isPromotableToArray = true
+    override def isDisplayable = true
   }
 
   /** The type of arbitrary-width integers */
@@ -142,6 +183,22 @@ object Type {
     override def getDefaultValue = Some(Value.AbsType(this))
     override def getDefNodeId = Some(node._2.id)
     override def toString = node._2.data.name
+  }
+  
+  /** An alias type */
+  case class AliasType(
+    /** The AST node giving the definition */
+    node: Ast.Annotated[AstNode[Ast.DefAliasType]],
+
+    /** Type that this typedef points to */
+    aliasType: Type
+  ) extends Type {
+    override def getDefaultValue = aliasType.getDefaultValue
+    override def getDefNodeId = Some(node._2.id)
+    override def toString = node._2.data.name
+    override def isCanonical = false
+    override def isDisplayable = getUnderlyingType.isDisplayable
+    override def getUnderlyingType = aliasType.getUnderlyingType
   }
 
   /** A named array type */
@@ -161,6 +218,7 @@ object Type {
     override def getArraySize = anonArray.getArraySize
     override def getDefNodeId = Some(node._2.id)
     override def hasNumericMembers = anonArray.hasNumericMembers
+    override def isDisplayable = anonArray.eltType.isDisplayable
     override def toString = "array " ++ node._2.data.name
   }
 
@@ -198,6 +256,7 @@ object Type {
     override def getDefNodeId = Some(node._2.id)
     override def isConvertibleToNumeric = true
     override def isPromotableToArray = true
+    override def isDisplayable = true
     override def toString = "enum " ++ node._2.data.name
   }
 
@@ -217,6 +276,7 @@ object Type {
     override def getDefaultValue: Option[Value.Struct] = default
     override def getDefNodeId = Some(node._2.id)
     override def hasNumericMembers = anonStruct.hasNumericMembers
+    override def isDisplayable = anonStruct.members.values.forall(_.isDisplayable)
     override def toString = "struct " ++ node._2.data.name
   }
 
@@ -308,6 +368,7 @@ object Type {
   /** Check for type identity */
   def areIdentical(t1: Type, t2: Type): Boolean = {
     val pair = (t1, t2)
+
     def numeric = pair match {
       case (PrimitiveInt(kind1), PrimitiveInt(kind2)) => kind1 == kind2
       case (Float(kind1), Float(kind2)) => kind1 == kind2
@@ -334,8 +395,13 @@ object Type {
   }
   
   /** Check for type convertibility */
-  def mayBeConverted(pair: (Type, Type)): Boolean = {
+  def mayBeConverted(aliasPair: (Type, Type)): Boolean = {
+    val pair = (aliasPair._1.getUnderlyingType, aliasPair._2.getUnderlyingType)
     val t1 -> t2 = pair
+
+    assert(t1.isCanonical)
+    assert(t2.isCanonical)
+
     def numeric = t1.isConvertibleToNumeric && t2.isNumeric
     def string = pair match {
       case (String(_) -> String(_)) => true
@@ -376,7 +442,6 @@ object Type {
     array ||
     struct
   }
-
   /** Compute the common type for a pair of types */
   def commonType(t1: Type, t2: Type): Option[Type] = {
     val pair = (t1, t2)
@@ -391,6 +456,36 @@ object Type {
     def identical() = areIdentical(t1, t2) match {
       case true => Some(t1)
       case false => None
+    }
+    def alias() = {
+      def lca(a: Type, b: Type): Option[Type] = {
+        def getAncestors(t: Type, ancs: List[Type] = List()): List[Type] = {
+          t match {
+            case AliasType(_, parentType) =>
+              getAncestors(parentType, t :: ancs)
+            case _ =>
+              t :: ancs
+          }
+        }
+
+        // Reverse the ancestor list since `getAncestors` returns
+        // the ancestors with the oldest ancestor first.
+        val ancestorsOfA = getAncestors(a).reverse
+        val ancestorsOfB = getAncestors(b).reverse
+
+        // Traverse the ancestry of 'b' until we find a common ancestor with 'a'
+        ancestorsOfB.find(bi => ancestorsOfA.find(ai => areIdentical(ai, bi)).isDefined)
+      }
+
+      // Apply this rule if either of t1 and t2 is an alias type
+      if (!t1.isCanonical || !t2.isCanonical)
+        lca(t1, t2) match {
+          // If there is a least common ancestor, then use it
+          case Some(c) => Some(c)
+          // Otherwise use the common type of the undelrying types
+          case None => commonType(t1.getUnderlyingType, t2.getUnderlyingType)
+        }
+      else None
     }
     def numeric() = 
       if (t1.isFloat && t2.isNumeric) Some(Float(Float.F64))
@@ -485,6 +580,7 @@ object Type {
     }
     val rules: List[Rule] = List(
       identical,
+      alias,
       numeric,
       string,
       enumeration,

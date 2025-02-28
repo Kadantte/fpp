@@ -5,38 +5,9 @@ import fpp.compiler.ast._
 import fpp.compiler.util._
 
 /** Writes out C++ */
-object CppWriter extends AstStateVisitor with LineUtils {
+trait CppWriter extends AstStateVisitor with LineUtils {
 
   type State = CppWriterState
-
-  override def defEnumAnnotatedNode(
-    s: CppWriterState,
-    aNode: Ast.Annotated[AstNode[Ast.DefEnum]]
-  ) = {
-    val node = aNode._2
-    val data = node.data
-    val cppDoc = EnumCppWriter(s, aNode).write
-    writeCppDoc(s, cppDoc)
-  }
-
-  override def defModuleAnnotatedNode(
-    s: State,
-    aNode: Ast.Annotated[AstNode[Ast.DefModule]]
-  ) = {
-    val node = aNode._2
-    val data = node.data
-    visitList(s, data.members, matchModuleMember)
-  }
-
-  override def defTopologyAnnotatedNode(
-    s: State,
-    aNode: Ast.Annotated[AstNode[Ast.DefTopology]]
-  ) = {
-    val node = aNode._2
-    val data = node.data
-    val cppDoc = TopologyCppWriter(s, aNode).write
-    writeCppDoc(s, cppDoc)
-  }
 
   override def transUnit(s: State, tu: Ast.TransUnit) =
     visitList(s, tu.members, matchTuMember)
@@ -47,85 +18,136 @@ object CppWriter extends AstStateVisitor with LineUtils {
       _ <- visitList(s, tul, transUnit)
     }
     yield ()
+}
+
+object CppWriter extends LineUtils{
+
+  /** A file banner for the CppWriter */
+  case class FileBanner(toolNameOpt: Option[String]) extends CppDoc.FileBanner {
+    val defaultFileBanner = CppDoc.DefaultFileBanner(toolNameOpt)
+    override def getTitle(fileName: String): String =
+      // If the file is a template, the title is the actual file name
+      ComputeCppFiles.FileNames.convertTemplateToActual(fileName)
+    override def getAuthor(fileName: String): String =
+      if ComputeCppFiles.FileNames.isTemplate(fileName)
+      // If the file is a template, then write in the user name as the author.
+      // Ownership of the generated code passes to the user when the
+      // template file is copied to the actual file.
+      then System.getProperty("user.name")
+      // Otherwise say that the file is auto-generated
+      else defaultFileBanner.getAuthor(fileName)
+    override def getDescription(fileName: String, genericDescription: String): String = {
+      // The description for the TesterHelpers file is specialized
+      val defaultDescription =
+        defaultFileBanner.getDescription(fileName, genericDescription)
+      if ComputeCppFiles.FileNames.isTesterHelpers(fileName)
+      then defaultDescription.replaceAll("implementation class", "helper functions")
+      else defaultDescription
+    }
+  }
 
   def createCppDoc(
     description: String,
-    fileName: String,
+    fileNameBase: String,
     includeGuard: String,
-    members: List[CppDoc.Member]
+    members: List[CppDoc.Member],
+    toolName: Option[String],
+    hppFileExtension: String = "hpp",
+    cppFileExtension: String = "cpp",
   ): CppDoc = {
-    val hppFile = CppDoc.HppFile(s"$fileName.hpp", includeGuard)
-    CppDoc(description, hppFile, s"$fileName.cpp", members)
+    val hppFile = CppDoc.HppFile(s"$fileNameBase.$hppFileExtension", includeGuard)
+    val fileBanner = Some(FileBanner(toolName))
+    CppDoc(description, hppFile, s"$fileNameBase.$cppFileExtension", members, toolName, fileBanner)
   }
 
-  def headerString(s: String): String = {
-    val q = "\""
-    s"#include $q$s$q"
-  }
+  /** Construct a header string */
+  def headerString: String => String = CppWriterState.headerString
 
   def systemHeaderString(s: String): String = s"#include <$s>"
 
   def headerLine(s: String): Line = line(headerString(s))
 
-  def linesMember(
-    content: List[Line],
-    output: CppDoc.Lines.Output = CppDoc.Lines.Hpp
-  ): CppDoc.Member.Lines = CppDoc.Member.Lines(CppDoc.Lines(content, output))
-
-  def namespaceMember(
-    name: String,
-    members: List[CppDoc.Member]
-  ): CppDoc.Member.Namespace = CppDoc.Member.Namespace(CppDoc.Namespace(name, members))
-
-  def wrapInNamespaces(
-    namespaceNames: List[String],
-    members: List[CppDoc.Member]
-  ): List[CppDoc.Member] = namespaceNames match {
-    case Nil => members
-    case head :: tail =>
-      List(namespaceMember(head, wrapInNamespaces(tail, members)))
-  }
-
-  def writeCppDoc(s: State, cppDoc: CppDoc): Result.Result[State] =
+  /** Write the CppDoc.
+   *  Always write the hpp file and cppDoc.cppFileName.
+   *  If cppFileNameBases is non-Nil, then write those files as well. */
+  def writeCppDoc(
+    s: CppWriterState,
+    cppDoc: CppDoc,
+    cppFileNameBases: List[String] = Nil
+  ): Result.Result[CppWriterState] = {
     for {
-      _ <- writeHppFile(s, cppDoc)
-      _ <- writeCppFile(s, cppDoc)
+      // Write the hpp file
+      s <- writeHppFile(s, cppDoc)
+      // Write the default cpp file
+      s <- writeCppFile(s, cppDoc)
+      // Write the supplemental cpp files
+      s <- Result.foldLeft (cppFileNameBases) (s) (
+        (s, fileName) => writeCppFile(s, cppDoc, Some(fileName))
+      )
     }
     yield s
-
-  private def writeCppFile(s: State, cppDoc: CppDoc) = {
-    val lines = CppDocCppWriter.visitCppDoc(cppDoc)
-    writeLinesToFile(s, cppDoc.cppFileName, lines)
   }
 
-  private def writeHppFile(s: State, cppDoc: CppDoc) = {
+  /** Writes a cpp file for the CppDoc. By default, the cpp file written is
+   *  cppDoc.cppFileName.
+   *  You can specify a different cpp file by setting cppFileNameBaseOpt to
+   *  a value other than None. */
+  def writeCppFile(
+    s: CppWriterState,
+    cppDoc: CppDoc,
+    cppFileNameBaseOpt: Option[String] = None
+  ) = {
+    val lines = CppDocCppWriter.visitCppDoc(cppDoc, cppFileNameBaseOpt)
+    val cppFileName = cppFileNameBaseOpt match {
+      case Some(base) => s"$base.cpp"
+      case None => cppDoc.cppFileName
+    }
+    for (_ <- writeLinesToFile(s, cppFileName, lines)) yield s
+  }
+
+  /** Writes the hpp file for the CppDoc. */
+  def writeHppFile(s: CppWriterState, cppDoc: CppDoc) = {
     val lines = CppDocHppWriter.visitCppDoc(cppDoc)
-    writeLinesToFile(s, cppDoc.hppFile.name, lines)
+    for (_ <- writeLinesToFile(s, cppDoc.hppFile.name, lines)) yield s
   }
 
   private def writeLinesToFile(
-    s: State,
+    s: CppWriterState,
     fileName: String,
     lines: List[Line]
   ) = {
     val path = java.nio.file.Paths.get(s.dir, fileName)
     val file = File.Path(path)
-    for (writer <- file.openWrite()) yield { 
+    for (writer <- file.openWrite()) yield {
       lines.map(Line.write(writer) _)
       writer.close()
     }
   }
 
   /** Constructs a C++ identifier from a qualified name */
-  def identFromQualifiedName(name: Name.Qualified): String =
-    name.toString.replaceAll("\\.", "_")
+  def identFromQualifiedName: Name.Qualified => String =
+    CppWriterState.identFromQualifiedName
 
   /** Writes a qualified name */
-  def writeQualifiedName(name: Name.Qualified): String =
-    name.toString.replaceAll("\\.", "::")
+  val writeQualifiedName: Name.Qualified => String =
+    CppWriterState.writeQualifiedName
 
   /** Writes an identifier */
-  def writeId(id: Int): String = s"0x${Integer.toString(id, 16).toUpperCase}"
+  def writeId(id: BigInt): String = s"0x${id.toString(16).toUpperCase}"
+
+  def getMode(template: Boolean, unitTest: Boolean): Mode =
+    (template, unitTest) match {
+      case (false, false) => Autocode
+      case (true, false) => ImplTemplate
+      case (false, true) => UnitTest
+      case (true, true) => UnitTestTemplate
+    }
+
+  def getTestHelperMode(auto: Boolean): TestHelperMode =
+    auto match {
+      case true => TestHelperMode.Auto
+      case false => TestHelperMode.Manual
+    }
 
   /** The phases of code generation */
   object Phases {
@@ -166,6 +188,18 @@ object CppWriter extends AstStateVisitor with LineUtils {
     /** Tear down components */
     val tearDownComponents = 11
 
+  }
+
+  sealed trait Mode
+  case object Autocode extends Mode
+  case object ImplTemplate extends Mode
+  case object UnitTest extends Mode
+  case object UnitTestTemplate extends Mode
+
+  sealed trait TestHelperMode
+  object TestHelperMode {
+    case object Auto extends TestHelperMode
+    case object Manual extends TestHelperMode
   }
 
 }

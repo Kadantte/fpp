@@ -10,6 +10,24 @@
 #include "C.hpp"
 #include "CommandsTopologyDefs.hpp"
 
+// ----------------------------------------------------------------------
+// Component instances
+// ----------------------------------------------------------------------
+
+namespace M {
+
+  //! c1
+  extern M::C c1;
+
+}
+
+namespace M {
+
+  //! c2
+  extern M::C c2;
+
+}
+
 namespace M {
 
   // ----------------------------------------------------------------------
@@ -18,27 +36,17 @@ namespace M {
 
   namespace BaseIds {
     enum {
-      c1 = 0x100,
-      c2 = 0x200,
+      M_c1 = 0x100,
+      M_c2 = 0x200,
     };
   }
 
   namespace InstanceIds {
     enum {
-      c1,
-      c2,
+      M_c1,
+      M_c2,
     };
   }
-
-  // ----------------------------------------------------------------------
-  // Component instances
-  // ----------------------------------------------------------------------
-
-  //! c1
-  extern C c1;
-
-  //! c2
-  extern C c2;
 
   // ----------------------------------------------------------------------
   // Helper functions
@@ -49,11 +57,45 @@ namespace M {
       const TopologyState& state //!< The topology state
   );
 
+  //! Configure components
+  void configComponents(
+      const TopologyState& state //!< The topology state
+  );
+
   //! Set component base Ids
   void setBaseIds();
 
+  //! Connect components
+  void connectComponents();
+
   //! Register commands
   void regCommands();
+
+  //! Read parameters
+  void readParameters();
+
+  //! Load parameters
+  void loadParameters();
+
+  //! Start tasks
+  void startTasks(
+      const TopologyState& state //!< The topology state
+  );
+
+  //! Stop tasks
+  void stopTasks(
+      const TopologyState& state //!< The topology state
+  );
+
+  //! Free threads
+  void freeThreads(
+      const TopologyState& state //!< The topology state
+  );
+
+  //! Tear down components
+  void tearDownComponents(
+      const TopologyState& state //!< The topology state
+  );
 
   // ----------------------------------------------------------------------
   // Setup and teardown functions

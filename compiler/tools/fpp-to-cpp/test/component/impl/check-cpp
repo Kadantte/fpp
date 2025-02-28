@@ -1,0 +1,29 @@
+#!/bin/sh
+
+cd `dirname $0`
+
+fprime_gcc=../../../../../scripts/fprime-gcc
+export FPRIME_GCC_FLAGS="-I../../fprime"
+warning_flags="
+-Wno-abstract-final-class
+-Wno-return-type
+-Wno-unused-parameter
+"
+
+# Generate framework cpp files
+../../fprime/generate_cpp
+
+# Generate header files
+echo "running the tests in ../base to generate the header files"
+(cd ../base; ./run)
+cp ../base/*Ac.hpp .
+
+# Compile cpp files
+for file in `ls *.template.ref.cpp`
+do
+  base=`basename $file .template.ref.cpp`
+  cp $base.template.ref.hpp $base.hpp
+  cp $base.template.ref.cpp $base.cpp
+  echo "compiling $base.cpp"
+  $fprime_gcc -I../../../.. -I.. -I../.. -I../../fprime/config $warning_flags -c $base.cpp
+done

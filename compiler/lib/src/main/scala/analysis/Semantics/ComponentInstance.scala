@@ -8,13 +8,13 @@ final case class ComponentInstance(
   aNode: Ast.Annotated[AstNode[Ast.DefComponentInstance]],
   qualifiedName: Name.Qualified,
   component: Component,
-  baseId: Int,
-  maxId: Int,
+  baseId: BigInt,
+  maxId: BigInt,
   file: Option[String],
-  queueSize: Option[Int],
-  stackSize: Option[Int],
-  priority: Option[Int],
-  cpu: Option[Int],
+  queueSize: Option[BigInt],
+  stackSize: Option[BigInt],
+  priority: Option[BigInt],
+  cpu: Option[BigInt],
   initSpecifierMap: Map[Int, InitSpecifier] = Map()
 ) extends Ordered[ComponentInstance] {
 
@@ -58,11 +58,12 @@ object ComponentInstance {
     for {
       component <- a.getComponent(data.component.id)
       componentKind <- Right(component.aNode._2.data.kind)
-      baseId <- a.getNonnegativeIntValue(data.baseId.id)
+      baseId <- a.getNonnegativeBigIntValue(data.baseId.id)
       file <- Right(data.file.map(getFile))
       queueSize <- getQueueSize(
         a,
         data.name,
+        Locations.get(node.id),
         componentKind,
         data.queueSize
       )
@@ -71,7 +72,7 @@ object ComponentInstance {
         componentKind
       )(
         "stack size",
-        a.getNonnegativeIntValueOpt,
+        a.getNonnegativeBigIntValueOpt,
         data.stackSize
       )
       priority <- getActiveAttribute(
@@ -79,7 +80,7 @@ object ComponentInstance {
         componentKind,
       )(
         "priority",
-        a.getIntValueOpt,
+        node => Right(a.getBigIntValueOpt(node)),
         data.priority
       )
       cpu <- getActiveAttribute(
@@ -87,7 +88,7 @@ object ComponentInstance {
         componentKind,
       )(
         "CPU affinity",
-        a.getIntValueOpt,
+        node => Right(a.getBigIntValueOpt(node)),
         data.cpu
       )
     }
@@ -130,18 +131,23 @@ object ComponentInstance {
   private def getQueueSize(
     a: Analysis,
     name: String,
+    loc: Location,
     componentKind: Ast.ComponentKind,
     nodeOpt: Option[AstNode[Ast.Expr]]
-  ): Result.Result[Option[Int]] = {
+  ): Result.Result[Option[BigInt]] = {
     (componentKind, nodeOpt) match {
       case (Ast.ComponentKind.Passive, Some(node)) => invalid(
         name,
         Locations.get(node.id),
         "passive component may not have queue size"
       )
-      case (_, Some(_)) => a.getNonnegativeIntValueOpt(nodeOpt)
-      case (_, None) =>
-        Right(None)
+      case (_, Some(_)) => a.getNonnegativeBigIntValueOpt(nodeOpt)
+      case (Ast.ComponentKind.Passive, None) => Right(None)
+      case _ => invalid(
+        name,
+        loc,
+        s"$componentKind component must have queue size"
+      )
     }
   }
 
@@ -152,9 +158,9 @@ object ComponentInstance {
   )
   (
     kind: String,
-    getValue: Option[AstNode[Ast.Expr]] => Result.Result[Option[Int]],
+    getValue: Option[AstNode[Ast.Expr]] => Result.Result[Option[BigInt]],
     nodeOpt: Option[AstNode[Ast.Expr]]
-  ): Result.Result[Option[Int]] =
+  ): Result.Result[Option[BigInt]] =
     (componentKind, nodeOpt) match {
       case (Ast.ComponentKind.Active, Some(_)) => getValue(nodeOpt)
       case (_, Some(node)) => invalid(

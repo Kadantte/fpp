@@ -16,7 +16,7 @@ sealed trait Command {
 
 object Command {
 
-  type Opcode = Int
+  type Opcode = BigInt
 
   /** A non-parameter command */
   final case class NonParam(
@@ -31,7 +31,7 @@ object Command {
 
     sealed trait Kind
     case class Async(
-      priority: Option[Int],
+      priority: Option[BigInt],
       queueFull: Ast.QueueFull
     ) extends Kind
     case object Guarded extends Kind
@@ -48,8 +48,8 @@ object Command {
     override def getName = {
       val paramName = aNode._2.data.name.toUpperCase
       kind match {
-        case Param.Get => s"${paramName}_PARAM_GET"
-        case Param.Set => s"${paramName}_PARAM_SET"
+        case Param.Save => s"${paramName}_PRM_SAVE"
+        case Param.Set => s"${paramName}_PRM_SET"
       }
     }
   }
@@ -57,7 +57,7 @@ object Command {
   object Param {
 
     sealed trait Kind
-    case object Get extends Kind
+    case object Save extends Kind
     case object Set extends Kind
 
   }
@@ -93,9 +93,10 @@ object Command {
             Left(SemanticError.InvalidQueueFull(loc))
           case (_, None) => Right(())
         }
-        priority <- a.getIntValueOpt(data.priority)
+        priority <- Right(a.getBigIntValueOpt(data.priority))
         _ <- Analysis.checkForDuplicateParameter(data.params)
         _ <- checkRefParams(data.params)
+        _ <- a.checkDisplayableParams(data.params, "type of command parameter is not displayable")
       }
       yield {
         val kind = data.kind match {

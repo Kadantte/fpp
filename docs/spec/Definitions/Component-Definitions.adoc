@@ -7,7 +7,7 @@ Component instances communicate with each other across
 
 ==== Syntax
 
-_component-kind_ `component` 
+_component-kind_ `component`
 <<Lexical-Elements_Identifiers,_identifier_>>
 `{` _component-member-sequence_ `}`
 
@@ -20,26 +20,39 @@ _component-kind_ is one of the following:
 * `queued`
 
 _component-member-sequence_ is an
-<<Element-Sequences,element sequence>> in 
+<<Element-Sequences,element sequence>> in
 which each element is a *component member*,
 and the terminating punctuation is a semicolon.
 A component member is one of the following:
 
 * A <<Definitions_Constant-Definitions,constant definition>>
 
+* A <<Definitions_State-Machine-Definitions,state machine definition>>
+
 * A <<Definitions_Struct-Definitions,struct definition>>
 
 * A <<Specifiers_Command-Specifiers,command specifier>>.
 All commands specified in a component must have distinct names and opcodes.
 
+* A <<Specifiers_Container-Specifiers,container specifier>>.
+All containers specified in a component must have distinct names and identifier
+values.
+
 * A <<Specifiers_Parameter-Specifiers,parameter specifier>>.
-All parameters specified in a component must have distinct names and identifier 
+All parameters specified in a component must have distinct names and identifier
 values.
 
 * A <<Specifiers_Port-Instance-Specifiers,port instance specifier>>
 
+* A <<Specifiers_Record-Specifiers,record specifier>>.
+All records specified in a component must have distinct names and identifier
+values.
+
+* A <<Specifiers_State-Machine-Instance-Specifiers,state machine instance specifier>>.
+All state machine instances specified in a component must have distinct names.
+
 * A <<Specifiers_Telemetry-Channel-Specifiers,telemetry channel specifier>>.
-All telemetry channels specified in a component must have distinct names and 
+All telemetry channels specified in a component must have distinct names and
 identifier values.
 
 * An <<Definitions_Abstract-Type-Definitions,abstract type definition>>
@@ -49,33 +62,43 @@ identifier values.
 * An <<Definitions_Enum-Definitions,enum definition>>
 
 * An <<Specifiers_Event-Specifiers,event specifier>>.
-All events specified in a component must have distinct names and identifier 
+All events specified in a component must have distinct names and identifier
 values.
 
 * An <<Specifiers_Include-Specifiers,include specifier>>
 
 * An <<Specifiers_Internal-Port-Specifiers,internal port specifier>>
 
-The command, event, parameter, and telemetry specifiers are collectively
-referred to as *dictionary specifiers*.
+The command, event, parameter, telemetry, record, and container
+specifiers are collectively referred to as *dictionary specifiers*.
+The record and container specifiers are collectively referred to
+as *data product specifiers*.
 
 ==== Semantics
 
 The identifier is the name of the component.
 The definitions inside the body of the component are
-qualified with the component name, as for 
+qualified with the component name, as for
 <<Definitions_Module-Definitions,module definitions>>.
 
 The component members must satisfy the following rules:
 
-. All names appearing in any general port specifiers, special port specifiers, 
+. All names appearing in any general port specifiers, special port specifiers,
 and internal port specifiers must be distinct.
 
-. No passive component may have an `async` `input` port specifier, an internal
-port specifier, or an `async` command specifier.
+. All names appearing in any state machine instance specifier must
+be distinct.
 
-. Each active or queued component must have at least one `async` `input` port 
-specifier, internal port specifier, or `async` command specifier.
+. No passive component may have an `async` general or special
+port specifier, an internal
+port specifier, an `async` command specifier, or a state machine instance
+specifier.
+
+. Each active or queued component must have at least one `async` general
+or special port specifier, internal port specifier,
+`async` command specifier, or state machine instance specifier.
+
+. Each component may have at most one of each special port kind.
 
 . Each component must provide ports as shown in the table below.
 
@@ -94,6 +117,13 @@ specifier, internal port specifier, or `async` command specifier.
 
 |If there are any telemetry specifiers
 |There must be specifiers for ports `telemetry` and `time get`.
+
+|If there are any data product specifiers
+|There must be a specifier for either port `product` `get` or
+port `product` `request`.
+There must be specifiers for ports `product` `send` and `time` `get`.
+|If there is a specifier for `product` `request`
+|There must be a specifier for port `product` `recv`.
 |===
 
 The dictionary specifiers must satisfy the following rules:
@@ -106,6 +136,13 @@ The dictionary specifiers must satisfy the following rules:
 
 . All telemetry channels must have distinct names and identifier values.
 
+. All records must have distinct names and identifier values.
+
+. All containers must have distinct names and identifier values.
+
+. If there are any container specifiers, then there must be at least one
+record specifier, and vice versa.
+
 ==== Examples
 
 [source,fpp]
@@ -115,7 +152,7 @@ The dictionary specifiers must satisfy the following rules:
 active component CommandDispatcher {
 
   # ----------------------------------------------------------------------
-  # Constants 
+  # Constants
   # ----------------------------------------------------------------------
 
   @ The number of com command input ports
@@ -125,7 +162,7 @@ active component CommandDispatcher {
   constant numCmdOutPorts = 20
 
   # ----------------------------------------------------------------------
-  # General ports 
+  # General ports
   # ----------------------------------------------------------------------
 
   @ Dispatches commands
@@ -136,7 +173,7 @@ active component CommandDispatcher {
 
   @ Receives com packets containing serialized commands
   async input port comCmdIn: [numComCmdInPorts] Fw.Com
-  
+
   @ Receives command registration requests
   guarded input port cmdRegIn: [numCmdOutPorts] Fw.CmdReg
 
@@ -144,7 +181,7 @@ active component CommandDispatcher {
   async input port cmdResponseIn: Fw.CmdResponse
 
   # ----------------------------------------------------------------------
-  # Special ports 
+  # Special ports
   # ----------------------------------------------------------------------
 
   @ Command receive port
@@ -169,7 +206,7 @@ active component CommandDispatcher {
   time get port timeGetOut
 
   # ----------------------------------------------------------------------
-  # Commands 
+  # Commands
   # ----------------------------------------------------------------------
 
   @ No-op command
@@ -183,7 +220,7 @@ active component CommandDispatcher {
   ...
 
   # ----------------------------------------------------------------------
-  # Events 
+  # Events
   # ----------------------------------------------------------------------
 
   @ Opcode registered event
@@ -203,15 +240,158 @@ active component CommandDispatcher {
 
   ...
 
-  # ---------------------------------------------------------------------- 
+  # ----------------------------------------------------------------------
   # Telemetry
-  # ---------------------------------------------------------------------- 
+  # ----------------------------------------------------------------------
 
   @ Number of commands dispatched
   telemetry CommandsDispatched: U32 update on change
 
   @ Number of command errors
   telemetry CommandErrors: U32 update on change
+
+}
+----
+
+[source,fpp]
+----
+@ Produces and sends images
+active component Imager {
+
+  # ----------------------------------------------------------------------
+  # Special ports
+  # ----------------------------------------------------------------------
+
+  @ Command receive port
+  command recv port cmdIn
+
+  @ Command registration port
+  command reg port cmdRegOut
+
+  @ Command response port
+  command resp cmdResponseOut
+
+  @ Event port
+  event port eventOut
+
+  @ Telemetry port
+  telemetry port tlmOut
+
+  @ Text event port
+  text event port textEventOut
+
+  @ Time get port
+  time get port timeGetOut
+
+  @ Product request port
+  product request port productRequestOut
+
+  @ Product receive port
+  product recv port productRecvIn
+
+  @ Product send port
+  product send port productSendOut
+
+  # ----------------------------------------------------------------------
+  # Commands
+  # ----------------------------------------------------------------------
+
+  @ Take an image and send it as a data product
+  async command TAKE_IMAGE
+
+  ...
+
+  # ----------------------------------------------------------------------
+  # Events
+  # ----------------------------------------------------------------------
+
+  @ Image taken
+  event ImageTaken severity activity low format "Image taken"
+
+  ...
+
+  # ----------------------------------------------------------------------
+  # Telemetry
+  # ----------------------------------------------------------------------
+
+  @ Number of images taken
+  telemetry NumImagesTaken: U32 update on change
+
+  ...
+
+  # ----------------------------------------------------------------------
+  # Data products
+  # ----------------------------------------------------------------------
+
+  @ A container for images
+  product container ImageContainer
+
+  @ A record for holding an image
+  product record ImageRecord: Image
+
+}
+----
+
+[source,fpp]
+----
+@ A component with state machines
+active component DeviceMgr {
+
+  # ----------------------------------------------------------------------
+  # State machines
+  # ----------------------------------------------------------------------
+
+  @ A state machine representing a device
+  state machine Device {
+
+    @ Start the device
+    signal Start
+
+    @ Stop the device
+    signal Stop
+
+    @ Initial state is IDLE
+    initial enter IDLE
+
+    @ The IDLE state
+    state IDLE {
+      on Start enter RUNNING
+    }
+
+    @ The RUNNING state
+    state RUNNING {
+      on Stop enter IDLE
+    }
+
+  }
+
+  @ State machine instance for device 1
+  state machine instance device1: Device
+
+  @ State machine instance for device 2
+  state machine instance device2: Device
+
+  # ----------------------------------------------------------------------
+  # Special ports
+  # ----------------------------------------------------------------------
+
+  ...
+
+  # ----------------------------------------------------------------------
+  # Commands
+  # ----------------------------------------------------------------------
+
+  @ Send a Start event to the specified device
+  async command START(
+    @ The device number
+    deviceNum: U8
+  )
+
+  @ Send a Stop event to the specified device
+  async command STOP(
+    @ The device number
+    deviceNum: U8
+  )
 
 }
 ----

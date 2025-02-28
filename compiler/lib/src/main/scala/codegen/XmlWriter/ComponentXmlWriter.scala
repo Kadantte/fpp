@@ -203,7 +203,6 @@ object ComponentXmlWriter extends AstVisitor with LineUtils {
         case Kind.SyncInput => "sync_input"
         case Kind.Output => "output"
       }
-      val data = general.aNode._2.data
       val pairs = {
         val pairs1 = List(
           ("name", name),
@@ -217,7 +216,10 @@ object ComponentXmlWriter extends AstVisitor with LineUtils {
           case _ => Nil
         }
         val queueFull = general.kind match {
-          case Kind.AsyncInput(_, queueFull) => 
+          // Hook queue full option becomes drop in XML
+          case Kind.AsyncInput(_, Ast.QueueFull.Hook) =>
+            List(("full", Ast.QueueFull.Drop.toString))
+          case Kind.AsyncInput(_, queueFull) =>
             List(("full", queueFull.toString))
           case _ => Nil
         }
@@ -246,6 +248,8 @@ object ComponentXmlWriter extends AstVisitor with LineUtils {
           case Telemetry => "Telemetry"
           case TextEvent => "LogTextEvent"
           case TimeGet => "TimeGet"
+          // This should never happen, because of XML lowering
+          case _ => throw new InternalError(s"invalid specifier kind ${special.specifier.kind}")
         }
       }
       val pairs = List(
@@ -260,7 +264,12 @@ object ComponentXmlWriter extends AstVisitor with LineUtils {
     }
     def writePort(name: String, instance: PortInstance) = instance match {
       case general: PortInstance.General => writeGeneralPort(name, general)
-      case special: PortInstance.Special => writeSpecialPort(name, special)
+      case special: PortInstance.Special =>
+        // Lower data product ports to generic XML
+        DpPortXmlLowering(s, name, special).lower match {
+          case Some(general) => writeGeneralPort(name, general)
+          case None => writeSpecialPort(name, special)
+        }
       case _ => Nil
     }
     val ports = c.portMap.keys.toList.sortWith(_ < _).
@@ -301,7 +310,7 @@ object ComponentXmlWriter extends AstVisitor with LineUtils {
         ),
         tlmChannel.format match {
           case Some(format) => List((
-            "format_string", 
+            "format_string",
             FormatXmlWriter.formatToString(format, List(data.typeName))
           ))
           case None => Nil

@@ -2,9 +2,11 @@
 
 === Primitive Integer Types
 
-The *primitive integer types* correspond to the 
+The *primitive integer types* correspond to the
 <<Type-Names_Primitive-Integer-Type-Names,primitive integer type names>>
 and are written in the same way, e.g., `U32`.
+The primitive integer types whose names start with `I` are *signed*.
+The primitive integer types whose names start with `U` are *unsigned*.
 
 === Floating-Point Types
 
@@ -15,7 +17,7 @@ and are written in the same way, e.g., `F64`.
 === Primitive Numeric Types
 
 The <<Types_Primitive-Integer-Types,primitive integer types>>
-together with the <<Types_Floating-Point-Types,floating-point types>> are 
+together with the <<Types_Floating-Point-Types,floating-point types>> are
 called the *primitive numeric types*.
 
 === The Boolean Type
@@ -36,7 +38,7 @@ are called the *primitive types*.
 The *string types* correspond to the
 <<Type-Names_String-Type-Names,string type names>>.
 A string type is written `string` or `string size` _n_,
-where _n_ is an integer value greater than zero.
+where _n_ is an integer value in the range [1,2^31-1].
 There is one string type `string` and one string type `string` _n_
 for each legal value of _n_.
 
@@ -47,7 +49,7 @@ An *array type* is a type associated with an
 There is one array type per array definition.
 Each array type is computed after resolving constants,
 so an array type has a constant integer value for its size.
-An array type is written using its 
+An array type is written using its
 <<Scoping-of-Names_Names-of-Definitions,unique qualified
 name>>.
 
@@ -74,7 +76,16 @@ name>>.
 An *abstract type* is a type associated with an
 <<Definitions_Abstract-Type-Definitions,abstract type definition>>.
 There is is one abstract type per abstract type definition.
-An abstract type is written using its 
+An abstract type is written using its
+<<Scoping-of-Names_Names-of-Definitions,unique qualified
+name>>.
+
+=== Alias Types
+
+An *alias type* is a type associated with an
+<<Definitions_Alias-Type-Definitions,alias type definition>>.
+There is one alias type per alias type definition.
+An alias type is written using its
 <<Scoping-of-Names_Names-of-Definitions,unique qualified
 name>>.
 
@@ -90,13 +101,13 @@ to bit width.
 
 ==== Integer Types
 
-<<Types_Internal-Types_Integer,_Integer_>> together with the 
+<<Types_Internal-Types_Integer,_Integer_>> together with the
 <<Types_Primitive-Integer-Types,primitive integer types>> are called
 the *integer types*.
 
 ==== Numeric Types
 
-<<Types_Internal-Types_Integer,_Integer_>> together with the 
+<<Types_Internal-Types_Integer,_Integer_>> together with the
 <<Types_Primitive-Numeric-Types,primitive numeric types>> are called
 the *numeric types*.
 
@@ -116,31 +127,74 @@ The order of the members is not significant.
 For example, `{ a: U32, b: F32 }` represents the same
 type as `{ b : F32, a: U32 }`.
 
+=== Canonical Types
+
+A type is a *canonical type* if it is not an <<Types_Alias-Types,alias type>>.
+
+=== Underlying Types
+
+The *underlying type* of a type _T_ is the <<Types_Canonical-Types, canonical type>>
+associated with _T_.
+
+* If _T_ is a canonical type, then the underlying type of _T_ is _T_.
+
+* Otherwise _T_ is an <<Types_Alias-Types,alias type>>.
+In this case, the underlying type of _T_ is the underlying type of the type
+associated with _T_ in the definition of _T_.
+
+=== Displayable Types
+
+A *displayable type* is a type that the F Prime ground data system can display.
+It is one of the following:
+
+* A <<Types_Primitive-Integer-Types,primitive integer type>>.
+* A <<Types_Floating-Point-Types,floating-point type>>.
+* A <<Types_The-Boolean-Type,boolean type>>.
+* A <<Types_String-Types,string type>>.
+* An <<Types_Enum-Types,enum type>>.
+* An <<Types_Array-Types,array type>> whose member type is a displayable type.
+* A <<Types_Struct-Types,struct type>> whose member types are all displayable types.
+* An <<Types_Alias-Types,alias type>> whose <<Types_Underlying-Types,underlying 
+type>> is a displayable type.
+
 === Types with Numeric Members
 
-A type *has numeric members* if it is one of the following:
+A type *has numeric members* if its <<Types_Underlying-Types,underlying type>>
+is one of the following:
 
 * A <<Types_Internal-Types_Numeric-Types,numeric type>>.
 
 * An <<Types_Array-Types,array type>> or
-<<Types_Internal-Types_Anonymous-Array-Types,anonymous array type>> whose 
+<<Types_Internal-Types_Anonymous-Array-Types,anonymous array type>> whose
 member type has numeric members.
 
 * A <<Types_Struct-Types,struct type>> or
-<<Types_Internal-Types_Anonymous-Struct-Types,anonymous struct type>> whose 
+<<Types_Internal-Types_Anonymous-Struct-Types,anonymous struct type>> whose
 member types all have numeric members.
+
+=== Alias Lists
+
+The *alias list* of a type stem:[T] is a list stem:[L] defined as follows:
+
+. The head of stem:[L] is stem:[T].
+
+. If stem:[T] is not an <<Types_Alias-Types,alias type>>, then the
+tail of stem:[L] is the empty list.
+
+. Otherwise the tail of stem:[T] is the alias list of the type
+stem:[T'] that appears in the definition of stem:[T].
 
 === Default Values
 
-Every type _T_ with a syntactic name in FPP has an associated *default 
+Every type _T_ with a syntactic name in FPP has an associated *default
 value*.
-In generated C++ code, this is the value that is used to initialize a variable 
+In generated C++ code, this is the value that is used to initialize a variable
 of type _T_
 when no other initializer is specified.
 Default values are important, because they ensure that in generated code,
 every variable is initialized when it is created.
 
-* The default value associated with each 
+* The default value associated with each
 <<Types_Primitive-Numeric-Types,primitive numeric type>> is zero.
 
 * The default value associated with
@@ -160,7 +214,7 @@ array definitions>> for examples.
 
 * The default value associated with an
 <<Types_Enum-Types,enum type>> is (1) the default value
-specified in the enum definition, if one is given; 
+specified in the enum definition, if one is given;
 otherwise (2) the first
 enumerated constant appearing in the enum definition.
 
@@ -178,3 +232,8 @@ struct definitions>> for examples.
 <<Values_Abstract-Type-Values,single value associated with _T_>>.
 This value is left abstract in the FPP model; the implementation
 of _T_ must provide a concrete value.
+
+* The default value associated with an
+<<Types_Alias-Types,alias type>> _T_ is the
+<<Types_Default-Values,default value>> of its
+<<Types_Underlying-Types,underlying type>>.

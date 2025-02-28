@@ -1,0 +1,309 @@
+=== State Machine Definitions
+
+A *state machine definition* defines a state machine.
+
+There are two kinds of state machine definitions:
+
+. An *external state machine definition*
+introduces a name and informs the FPP analyzer that
+a state machine implementation with that name will be provided to the
+FSW build.
+
+. An *internal state machine definition*
+specifies the behavior of a state machine and
+causes an implementation to be generated.
+
+==== Syntax
+
+`state machine` <<Lexical-Elements_Identifiers,_identifier_>>
+_[_ `{` _state-machine-member-sequence_ `}` _]_
+
+_state-machine-member-sequence_ is an
+<<Element-Sequences,element sequence>> in
+which each element is a *state machine member*,
+and the terminating punctuation is a semicolon.
+A state machine member is one of the following:
+
+* A <<State-Machine-Behavior-Elements_Choice-Definitions,choice definition>>
+* A <<State-Machine-Behavior-Elements_Guard-Definitions,guard definition>>
+* A <<State-Machine-Behavior-Elements_Initial-Transition-Specifiers,initial transition specifier>>
+* A <<State-Machine-Behavior-Elements_Signal-Definitions,signal definition>>
+* A <<State-Machine-Behavior-Elements_State-Definitions,state definition>>
+* An <<State-Machine-Behavior-Elements_Action-Definitions,action definition>>
+
+The *transitive members* of a state machine definition _M_ are
+(1) the elements of _M_ and (2)
+the members of any state definition that is a transitive member of _M_.
+
+==== Static Semantics
+
+. The identifier is the name of the state machine.
+
+. If present, the optional state machine member sequence defines the
+behavior of the state machine.
+In this case, the state machine definition is internal.
+If the state machine member sequence is absent, then the state machine
+definition is external, i.e., the state machine
+behavior is not specified in FPP.
+
+. If present, the optional state machine member sequence _M_ must
+satisfy the following rules:
+
+.. _M_ must contain exactly one
+<<State-Machine-Behavior-Elements_Initial-Transition-Specifiers,initial transition specifier>>.
+The initial transition occurs when the state machine starts up.
+
+.. _M_ must satisfy the rules described
+<<Definitions_State-Machine-Definitions_Static-Semantics_The-Transition-Graph,below>>
+for the induced transition graph.
+
+.. _M_ must satisfy the rules described
+<<Definitions_State-Machine-Definitions_Static-Semantics_Typed-Elements,below>>
+for typed elements.
+
+===== The Transition Graph
+
+If present, the optional state machine member sequence _M_
+induces a directed graph called the *transition graph*, defined as
+follows:
+
+. The nodes of the transition graph are the state definitions and
+choice definitions that are transitive members of _M_.
+
+. The *initial node* of the transition graph is the state definition
+or choice definition referred to in the unique initial transition specifier
+that is an element of _M_.
+
+. The arcs of the transition graph are given by the
+<<State-Machine-Behavior-Elements_Transition-Expressions,
+transition expressions>> _e_ that appear in (1) initial transition specifiers
+that are members of states that are transitive members of _M_ and (2)
+state transition specifiers that are transitive members of _M_ and (3)
+choice definitions that are transitive members of _M_.
+Each transition expression represents an arc from a *start node* to an
+*end node*.
+The start node is defined as follows:
+
+.. If _e_ appears in an
+<<State-Machine-Behavior-Elements_Initial-Transition-Specifiers,
+initial transition specifier>> _I_, then the initial node is the
+<<State-Machine-Behavior-Elements_State-Definitions,state definition>>
+immediately enclosing _I_.
+
+.. If _e_ appears in a
+<<State-Machine-Behavior-Elements_State-Transition-Specifiers,
+state transition specifier>> _T_, then the initial
+node is the
+<<State-Machine-Behavior-Elements_State-Definitions,state definition>>
+immediately enclosing _T_.
+
+.. If _e_ appears in a
+<<State-Machine-Behavior-Elements_Choice-Definitions,choice definition>>
+_J_, then the initial node is _J_.
+
++
+The terminal node is the state or choice definition
+<<Definitions_State-Machine-Definitions_Static-Semantics_Scoping-of-Names,referred to>>
+in _e_.
+
+If the optional state machine member sequence is present, then
+the transition graph _T_ must satisfy the following rules:
+
+.  Each state definition and each choice definition in
+_T_ must be reachable from the initial node of _T_.
+
+. Let _S_ be the subgraph of _T_ consisting of all
+and only the choice definitions and the arcs whose start
+and end nodes are choice definitions.
+There must be no cycles in _S_.
+
+===== Typed Elements
+
+A *typed element* _e_ is an
+<<State-Machine-Behavior-Elements_Initial-Transition-Specifiers,initial transition specifier>>,
+a
+<<State-Machine-Behavior-Elements_State-Entry-Specifiers,state entry specifier>>,
+a
+<<State-Machine-Behavior-Elements_State-Transition-Specifiers,state transition specifier>>,
+a
+<<State-Machine-Behavior-Elements_State-Exit-Specifiers,state exit specifier>>,
+or a
+<<State-Machine-Behavior-Elements_Choice-Definitions,choice definition>>.
+A typed element _e_ *points to* a choice _J_ if
+
+. _e_ is an initial transition specifier, and its transition expression
+refers to _J_; or
+
+. _e_ is a state transition specifier with a transition expression that refers to
+_J_; or
+
+. _e_ is a choice, and at least one of its transition expressions
+refers to _J_.
+
+It must be possible to assign <<Type-Options,type options>>
+to all the typed elements in a state machine definition in
+the following way.
+If not, an error results.
+
+. The type option of each initial transition specifier, state entry
+specifier, and state exit specifier is _None_.
+
+. The type option of each state transition specifier _S_ is the type
+option specified in the definition of the signal specified in _S_
+after the keyword `on`.
+
+. The type option of a choice _J_ is the
+<<Type-Options_Computing-a-Common-Type-Option_Lists-of-Type-Options,
+common type option>> of the type options of the typed elements
+that point to _J_.
+
+For each typed element _e_
+
+. Let _O_ be the type option assigned to _e_ as described above.
+
+. For every action _A_ appearing in the list of `do` actions specified in _e_,
+_O_ must be <<Type-Options_Conversion-of-Type-Options,convertible to>>
+the type option specified in _A_.
+
+. For every guard _G_ appearing in an `if` construct in _e_,
+_O_ must be <<Type-Options_Conversion-of-Type-Options,convertible to>>
+the type option specified in _G_.
+
+===== Scoping of Names
+
+Inside the optional state machine member sequence, the following
+rules govern the assignment of names to definitions and the resolution
+of names in uses.
+
+*State machine member definitions:*
+There are five kinds of *state machine member definitions*:
+Action definitions, guard definitions, choice definitions, state
+definitions, and state machine signal definitions.
+
+*Qualified names:*
+Each state machine member definition has an associated qualified
+name.
+Within a state machine member sequence,
+the association of names to state machine member definitions is
+the same as for <<Scoping-of-Names_Names-of-Definitions,FPP definitions>>,
+after replacing "`definition`" with "`state machine member definition.`"
+
+For example:
+
+[source,fpp]
+----
+state machine S {
+
+  # Qualified name is A
+  action A
+
+  # Qualified name is S1
+  state S1 {
+
+    # Qualified name is S1.S2
+    state S2
+
+  }
+
+}
+----
+
+*Conflicting names:*
+Each kind of definition resides in its own name group, except
+that states and choices both reside in the state name group.
+No two state machine definitions that reside in the same name group
+may have the same qualified name.
+
+*Resolution of names:*
+Names are resolved in the ordinary way for
+<<Scoping-of-Names_Resolution-of-Identifiers,identifiers>>
+and
+<<Scoping-of-Names_Resolution-of-Qualified-Identifiers,qualified identifiers>> in FPP,
+with the following modifications:
+
+. The top level is the state machine member sequence.
+
+. The definitions are the state machine member definitions.
+
+. Each kind of definition resides in its own name group.
+
+. The brace-delimited definitions are state definitions.
+
+==== Dynamic Semantics
+
+An internal state machine _M_ has the following runtime behavior:
+
+. _M_ maintains a current state _S_.
+The current state is undefined until initialization occurs.
+From that point on, the current state is always a leaf state.
+
+. _M_ provides a function for initializing the state machine.
+It runs the
+<<State-Machine-Behavior-Elements_Initial-Transition-Specifiers_Dynamic-Semantics,
+behavior associated with the initial transition specifier of _M_>>.
+
+. For each signal _s_, _M_ provides a function for sending _s_.
+This function has a typed argument with type _T_ if and only if
+the <<State-Machine-Behavior-Elements_Signal-Definitions,definition of signal _s_>>
+has type _T_.
+It runs the
+<<State-Machine-Behavior-Elements_State-Transition-Specifiers_Dynamic-Semantics,
+behavior associated with _s_ in the current state _S_>>.
+This behavior may cause one or more actions to be performed,
+and it may cause the current state to change.
+
+The functions are called by the code that is generated when a
+state machine is <<Specifiers_State-Machine-Instance-Specifiers,instantiated>>
+as part of an active or queued component.
+
+==== Examples
+
+[source,fpp]
+----
+
+state machine MonitorSm {
+
+  action doCalibrate
+  action init2
+  action motorControl
+  action reportFault
+
+  guard calibrateReady
+
+  signal Calibrate
+  signal Complete
+  signal Drive
+  signal Fault
+  signal RTI
+  signal Stop
+
+  initial enter DeviceOn
+
+  state DeviceOn {
+
+    initial do { init2 } enter Initializing
+
+    state Initializing {
+      on Complete enter Idle
+    }
+
+    state Idle {
+      on Drive enter Driving
+      on Calibrate if calibrateReady enter Calibrating
+    }
+
+    state Calibrating {
+      on RTI do { doCalibrate }
+      on Fault do { reportFault } enter Idle
+      on Complete enter Idle
+    }
+
+    state Driving {
+      on RTI do { motorControl }
+      on Stop enter Idle
+    }
+
+  }
+
+}
+----

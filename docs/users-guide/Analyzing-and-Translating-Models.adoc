@@ -32,8 +32,8 @@ If you run `fpp-check` with no arguments on the command line,
 it will block and wait for standard input.
 This is useful for interactive sessions, where you want
 to type simple model text into the console and immediately check it.
-`fpp-check` will keep reading input until (1) it encounters a parse error (more 
-on this below); or (2) you terminate the input with control-D (which must be 
+`fpp-check` will keep reading input until (1) it encounters a parse error (more
+on this below); or (2) you terminate the input with control-D (which must be
 the first character in a line); or (3)
 you terminate the program with control-C.
 
@@ -48,10 +48,10 @@ separated by spaces.
 
 When you run `fpp-check`, the following occurs:
 
-. The tool parses all the input files, recursively resolving 
+. The tool parses all the input files, recursively resolving
 <<Specifying-Models-as-Files_Include-Specifiers,include specifiers>> as it goes.
-If there are any parse errors or any problems resolving include files (for 
-example, a missing file), it prints an error message to standard error and 
+If there are any parse errors or any problems resolving include files (for
+example, a missing file), it prints an error message to standard error and
 halts with nonzero status.
 
 . If parsing succeeds, then the tool runs semantic analysis.
@@ -136,15 +136,15 @@ On the other hand, in topology `T2`, both `c.pOut` and `c.pIn`
 are considered connected (so not reported as unconnected)
 even though `c.Out` has two ports and only one of them is connected.
 
-
 === Generating XML
 
-Our current strategy is to generate
-F Prime XML, and then to run the generated XML through the F Prime
-Python autocoders to generate {cpp}.
-In a future version of FPP, we will simplify this process.
+We are phasing out the use of XML in favor of generating
+JSON and directly generating {cpp}.
+However, the F Prime XML representation is still used, e.g., in
+for specifying the layout of telemetry packets.
+This section describes how to generate XML from FPP.
 
-*XML file names:* The table <<xml-file-names>> shows how FPP definitions are 
+*XML file names:* The table <<xml-file-names>> shows how FPP definitions are
 translated to F Prime XML files.
 
 [[xml-file-names]]
@@ -190,7 +190,6 @@ module M {
 becomes an array with name `A` and namespace `M` in file
 `AArrayAi.xml`.
 
-
 *Tool name:* The tool for translating FPP definitions to XML files
 is called `fpp-to-xml`.
 
@@ -200,7 +199,7 @@ The usual procedure for running `fpp-to-xml` is as follows:
 . Identify one or more files _F_ that you want to translate.
 . <<Specifying-Models-as-Files_Computing-Dependencies,Compute the dependencies>> _D_ of _F_.
 . If _D_ is empty, then run `fpp-to-xml` _F_.
-. Otherwise run `fpp-to-xml -i` _D1_ `,` ... `,` _Dn_ _F_, where _Di_ are the
+. Otherwise run `fpp-to-xml -i` _D~1~_ `,` ... `,` _D~n~_ _F_, where _D~i~_ are the
 names of the dependencies.
 
 For example, suppose you want to generate XML for the definitions in `c.fpp`,
@@ -225,9 +224,9 @@ Only the files _F_ provided as arguments are translated.
 
 *Tool behavior:* When you run `fpp-to-xml`, the following occurs:
 
-. The tool runs the same analysis 
+. The tool runs the same analysis
 <<Analyzing-and-Translating-Models_Checking-Models,as for `fpp-check`>>.
-If there is any problem, the tool prints an error message to 
+If there is any problem, the tool prints an error message to
 standard error and halts with nonzero status.
 
 . If the analysis succeeds, then the tool generates XML files, one
@@ -263,7 +262,7 @@ If you run this command in directory `[path prefix]/A`
 % fpp-to-xml -i ../B/B.fpp A.fpp
 ----
 
-then in that directory the tool will generate a file `AArrayAi.xml` containing 
+then in that directory the tool will generate a file `AArrayAi.xml` containing
 the following line:
 
 [source,xml]
@@ -272,9 +271,9 @@ the following line:
 ----
 
 *Removing path prefixes:*
-Usually when generating XML we don't want to include the system-specific part 
+Usually when generating XML we don't want to include the system-specific part
 of the path prefix.
-Instead, we want the path to be specified relative to some known place, for 
+Instead, we want the path to be specified relative to some known place, for
 example
 the root of the F Prime repository or a project repository.
 
@@ -304,10 +303,23 @@ fpp-to-xml -p prefix1,prefix2, ...
 For each generated path, the tool will delete the longest prefix
 that matches a prefix in the list.
 
+As discussed in the section on
+<<Specifying-Models-as-Files_Path-Name-Aliases_Relative-Paths-and-Symbolic-Links,
+relative paths and symbolic links>>,
+when a file name is relative to a path _S_ that includes symbolic links,
+the associated location is relative to the directory _D_ pointed to by _S_.
+In this case, providing _S_ as an argument to `-p` will not work as expected.
+To work around this issue, you can do one of the following:
+
+. Provide both _D_ and _S_ as arguments to `-p`.
+
+. Use absolute paths when presenting files to FPP code generation tools
+  with the `-p` option.
+
 *More options:* The following additional options are available
 when running `fpp-to-xml`:
 
-* `-d` _dir_ : Use _dir_ instead of the current directory as 
+* `-d` _dir_ : Use _dir_ instead of the current directory as
 the output directory for writing files.
 For example,
 +
@@ -340,55 +352,78 @@ an automatic default of 80.
 you can provide FPP source on standard input, as described
 for <<Analyzing-and-Translating-Models_Checking-Models,`fpp-check`>>.
 
-*XML limitations:* The XML translation has several
-limitations.
-For more information, see the text marked *XML limitations* elsewhere
-in this manual.
-
 === Generating C Plus Plus
 
-As discussed in the previous section, our current strategy is to generate XML 
-and to use the F Prime autocoders to generate
-{cpp}.
-As of the current version of FPP, we make two exceptions to this rule:
+This section describes how to generate {cpp} from FPP.
 
-. For
-<<Defining-Constants,constant definitions>>,
-we generate {cpp} directly from FPP.
-The reason is that the F Prime XML representation has no way to specify 
-symbolic constants.
+*{cpp} file names:* The table <<cpp-file-names>> shows how FPP definitions are
+translated to {cpp} files.
 
-. For
-<<Defining-Topologies,topology definitions>>,
-we generate both XML and {cpp} from FPP.
-The reason is that FPP
-<<Defining-Component-Instances_Component-Instance-Definitions,
-instance definitions>>
-and
-<<Defining-Component-Instances_Init-Specifiers,
-init specifiers>>
-provide more complete {cpp} code generation than is available
-via F Prime XML.
-However, we still use the F Prime XML to generate dictionaries
-for the F Prime ground data system.
+[[cpp-file-names]]
+.{cpp} File Names
+|===
+|FPP Definition|{cpp} Files
+
+|Constants|`FppConstantsAc.{hpp,cpp}`
+|Array _A_ outside any component|_A_ `ArrayAc.{hpp,cpp}`
+|Array _A_ in component _C_|_C_ `_` _A_ `ArrayAc.{hpp,cpp}`
+|Enum _E_ outside any component|_E_ `EnumAc.{hpp,cpp}`
+|Enum _E_ in component _C_|_C_ `_` _E_ `EnumAc.{hpp,cpp}`
+|State machine _M_ outside any component|_M_ `StateMachineAc.{hpp,cpp}`
+|State machine _M_ in component _C_|_C_ `_` _M_ `StateMachineAc.{hpp,cpp}`
+|Struct _S_ outside any component|_S_ `SerializableAc.{hpp,cpp}`
+|Struct _S_ in component _C_|_C_ `_` _S_ `SerializableAc.{hpp,cpp}`
+|Port _P_|_P_ `PortAc.{hpp,cpp}`
+|Component _C_|_C_ `ComponentAc.{hpp,cpp}`
+|Topology _T_|_T_ `TopologyAc.{hpp,cpp}`
+|===
+
+For example, consider the FPP array definition
+
+[source,fpp]
+----
+array A = [3] U32
+----
+
+Outside of any component definition, this definition is translated to
+a {cpp} class with name `A` defined in a files `AArrayAc.hpp`
+and `AArray.cpp`.
+Inside the definition of component `C`, it is translated to
+a class with name `C_A` defined in the files `C_AArrayAc.hpp`
+and `C_AArray.cpp`.
+In either case the {cpp} namespace is given by the enclosing
+FPP modules, if any.
+For example, the following code
+
+[source,fpp]
+----
+module M {
+
+  array A = [3] U32
+
+}
+----
+
+generates an array class `M::A` in files `AArrayAc.hpp`
+and `AArrayAc.cpp`.
 
 *Tool name:* The tool for translating FPP to {cpp} is called
 `fpp-to-cpp`.
 
-*Procedure:* 
+*Procedure:*
 The usual procedure for running `fpp-to-cpp` is as follows:
 
 . Identify one or more files _F_ that you want to translate.
 . <<Specifying-Models-as-Files_Computing-Dependencies,Compute the dependencies>> _D_ of _F_.
 . If _D_ is empty, then run `fpp-to-cpp` _F_.
-. Otherwise run `fpp-to-cpp -i` _D1_ `,` ... `,` _Dn_ _F_, where _Di_ are the
+. Otherwise run `fpp-to-cpp -i` _D~1~_ `,` ... `,` _D~n~_ _F_, where _D~i~_ are the
 names of the dependencies.
 
-Except for the tool name, this procedure is identical to the one given for 
+Except for the tool name, this procedure is identical to the one given for
 <<Analyzing-and-Translating-Models_Generating-XML,generating XML>>.
 See that section for examples of the procedure.
 
-*Input:* As with the tools described above, you can provide input to 
+*Input:* As with the tools described above, you can provide input to
 `fpp-to-cpp`
 either through named files or through standard input.
 
@@ -402,7 +437,7 @@ By including and/or linking against these files,
 you can use constants defined in the FPP model
 in your FSW implementation code.
 
-To keep things simple, only numeric, string, and Boolean constants are 
+To keep things simple, only numeric, string, and Boolean constants are
 translated;
 struct and array constants are ignored.
 For example, the following constant is not translated, because
@@ -450,14 +485,15 @@ constant d = "abcd"
 You should see files `FppConstantsAc.hpp` and `FppConstantsAc.cpp`
 in the current directory.
 Examine them to confirm your understanding of how the translation
-works
+works.
 Notice how the FPP annotations are translated to comments.
-(We also remarked on this in the section on 
+(We also remarked on this in the section on
 <<Writing-Comments-and-Annotations_Annotations,writing annotations>>.)
 
 *Constants defined inside components:*
 As noted in the section on
-<<Defining-Components_Constants-and-Types,defining components>>,
+<<Defining-Components_Constants-Types-Enums-and-State-Machines,
+defining components>>,
 when you define a constant `c` inside a component `C`,
 the name of the corresponding constant in the generated {cpp}
 code is `C_c`.
@@ -503,15 +539,117 @@ then the include guard will be `Commands_FppConstantsAc_HPP`.
 *More options:* The following additional options are available
 when running `fpp-to-cpp`:
 
-* `-d` _dir_ : Use _dir_ instead of the current directory as 
+* `-d` _dir_ : Use _dir_ instead of the current directory as
 the output directory for writing files.
 This is similar to the `-d` option for
 <<Analyzing-and-Translating-Models_Generating-XML, `fpp-to-xml`>>.
 
-* `-n` _file_ : Write the names of the generated XML files
+* `-n` _file_ : Write the names of the generated {cpp} files
 to _file_.
 This is similar to the `-n` option for
 <<Analyzing-and-Translating-Models_Generating-XML, `fpp-to-xml`>>.
+
+* `-s` _size_ : Specify a default string size.
+This is similar to the `-s` option for
+<<Analyzing-and-Translating-Models_Generating-XML, `fpp-to-xml`>>.
+
+==== Types, Ports, State Machines, and Components
+
+To generate code for type, port, state machine, and component definitions, you
+run `fpp-to-cpp` in the same way as for
+<<Analyzing-and-Translating-Models_Generating-C-Plus-Plus_Constant-Definitions,
+constant definitions>>, with one exception:
+the translator ignores the `-g` option, because the include guard comes from
+the qualified name of the definition.
+For example, a component whose qualified name in FPP is `A.B.C`
+uses the name `A_B_CComponentAc_HPP` in its include guard.
+
+Once you generate {cpp} code for these definitions, you can use it to
+write a flight software implementation.
+The https://fprime.jpl.nasa.gov/devel/docs/user-manual/[F
+User Manual] explains how to do this.
+
+For more information about the generated code for data products,
+for state machines, and for state machine instances, see the
+https://fprime.jpl.nasa.gov/devel/docs/user-manual/[F
+Prime design documentation].
+
+==== Component Implementation and Unit Test Code
+
+`fpp-to-cpp` has options `-t` and `-u` for generating component "`templates`" 
+or
+partial implementations and for generating unit test code.
+Here we cover the mechanics of using these options.
+For more information on implementing and testing components in F Prime, see
+the https://fprime.jpl.nasa.gov/devel/docs/user-manual/[F Prime User Manual].
+
+*Generating implementation templates:*
+When you run `fpp-to-cpp` with option `-t` and without option `-u`,
+it generates a partial implementation for
+each component definition _C_ in the input.
+The generated files are called _C_ `.template.hpp` and _C_ `.template.cpp`.
+You can fill in the blanks in these files to provide the concrete
+implementation of _C_.
+
+*Generating unit test harness code:*
+When you run `fpp-to-cpp` with option `-u` and without option `-t`,
+it generates support code for testing each component definition _C_
+in the input.
+The unit test support code resides in the following files:
+
+* _C_ `TesterBase.hpp` and _C_ `TesterBase.cpp`.
+These files define a class _C_ `TesterBase`.
+This class contains helper code for unit testing _C_,
+for example an input port and history corresponding to each output port of _C_.
+
+* _C_ `GTestBase.hpp` and _C_ `GTestBase.cpp`.
+These files define a class _C_ `GTestBase` derived
+from _C_.
+This class uses the Google Test framework to provide additional helper
+code.
+It is factored into a separate class so that you can use _C_ `TesterBase`
+without _C_ `GTestBase` if you wish.
+
+*Generating unit test templates:*
+When you run `fpp-to-cpp` with both the `-u` and the `-t` options,
+it generates a template or partial implementation of the unit tests
+for each component _C_ in the input.
+The generated code consists of the following files:
+
+* _C_ `Tester.hpp` and _C_ `Tester.cpp`.
+These files partially define a class _C_ `Tester` that is derived from _C_ `GTestBase`.
+You can fill in the partial definition to provide unit tests for _C_.
+If you are not using Google Test, then you can modify
+_C_ `Tester` so that it is derived from _C_ `TesterBase`.
+
+* _C_ `TesterHelpers.cpp`. This file provides helper functions called by
+the functions defined in `Tester.cpp`.
+These functions are factored into a separate file so that you
+can redefine them if you wish.
+To redefine them, omit _C_ `TesterHelpers.cpp` from your F Prime
+unit test build.
+
+* _C_ `TestMain.cpp`. This file provides a minimal main function for unit
+testing, including a sample test.
+You can add your top-level test code to this file.
+
+*Unit test auto helpers:*
+When running `fpp-to-cpp` with the `-u` option, you can also specify the `-a`
+or *unit test auto helpers* option.
+This option moves the generation of the file _C_ `TesterHelpers.cpp`
+from the unit test template code to the unit test harness code.
+Specifically:
+
+* When you run `fpp-to-cpp -a -u`, the file _C_ `TesterHelpers.cpp`
+is generated.
+
+* When you run `fpp-to-cpp -a -t -u`, the file _C_ `TesterHelpers.cpp`
+is not generated.
+
+The `-a` option supports a feature of the F Prime CMake build system called
+`UT_AUTO_HELPERS`. With this feature enabled, you don't have to manage the
+file _C_ `TesterHelpers.cpp` as part of your unit test source files; the
+build system does it for you.
 
 ==== Topology Definitions
 
@@ -529,7 +667,7 @@ for the component instances used in _T_.
 You can call these functions from a handwritten `main`
 function.
 We will explain how to write this `main` function in the
-section on 
+section on
 <<Writing-C-Plus-Plus-Implementations_Implementing-Deployments,
 implementing deployments>>.
 
@@ -559,6 +697,30 @@ translating constant definitions>>.
 The `-g` option is ignored, because
 the include guard prefix comes from the name of the topology.
 
+==== Compiling the Generated Code
+
+The generated {cpp} is intended to compile with the following gcc
+and clang compiler flags:
+
+----
+--std=c++11
+-Wall
+-Wconversion
+-Wdouble-promotion
+-Werror
+-Wextra
+-Wno-unused-parameter
+-Wold-style-cast
+-Wshadow
+-pedantic
+----
+
+When using clang, the following flags must also be set:
+
+----
+-Wno-vla-extension
+----
+
 === Identifying Generated Files
 
 As discussed in the previous section, the `-n` option
@@ -569,14 +731,17 @@ files up front.
 For example, the CMake build tool writes out a Makefile rule
 for every generated file, and it does this as an initial step
 before generating any files.
+There are two ways to collect the names of generated files:
+using `fpp-filenames` and using `fpp-depend`.
 
-In this case, you can use the tool `fpp-filenames`.
+==== Using fpp-filenames
+
 Like `fpp-check`, `fpp-filenames` reads the files
 provided as command-line arguments if there are any;
 otherwise it reads from standard input.
 The FPP source presented to `fpp-filenames` need not be a complete
 model (i.e., it may contain undefined symbols).
-The tool parses the FPP source that you give it.
+When run with no options, tool parses the FPP source that you give it.
 It identifies all definitions in the source that would cause
 XML files to be generated when running `fpp-to-xml`
 or would cause {cpp} files to be generated when running
@@ -600,26 +765,130 @@ FppConstantsAc.cpp
 FppConstantsAc.hpp
 ----
 
-Alternatively, you can use the option `-g` _file_ to
-<<Specifying-Models-as-Files_Computing-Dependencies,`fpp-depend`>>.
-This option writes the generated file names to the file _file_
-as part of the dependency analysis.
+You can run `fpp-filenames` with the `-u` option, with the `-t` option,
+or with both options.
+In these cases `fpp-filenames` writes out the names of
+the files that would be generated by running `fpp-to-cpp` with the
+corresponding options.
 For example:
 
 ----
-% fpp-depend -g generated.txt
+% fpp-filenames -t
 array A = [3] U32
+passive component C {}
 ^D
-% cat generated.txt
-AArrayAi.xml
+C.template.cpp
+C.template.hpp
 ----
 
+----
+% fpp-filenames -u
+array A = [3] U32
+passive component C {}
+^D
+array A = [3] U32
+passive component C {}
+AArrayAc.cpp
+AArrayAc.hpp
+AArrayAi.xml
+CComponentAc.cpp
+CComponentAc.hpp
+CComponentAi.xml
+CGTestBase.cpp
+CGTestBase.hpp
+CTesterBase.cpp
+CTesterBase.hpp
+----
+
+----
+% fpp-filenames -u -t
+array A = [3] U32
+passive component C {}
+^D
+CTestMain.cpp
+CTester.cpp
+CTester.hpp
+CTesterHelpers.cpp
+----
+
+You can also also run `fpp-filenames` with the `-a` option.
+Again the results correspond to running `fpp-to-cpp` with this option.
+For example:
+
+----
+% fpp-filenames -a -u -t
+array A = [3] U32
+passive component C {}
+^D
+CTestMain.cpp
+CTester.cpp
+CTester.hpp
+----
+
+==== Using fpp-depend
+
+Alternatively, you can use
+<<Specifying-Models-as-Files_Computing-Dependencies,`fpp-depend`>>
+to write out the names of generated files during dependency analysis.
 The output is the same as for `fpp-filenames`, but this way you can
 run one tool (`fpp-depend`) instead of two (`fpp-depend` and
 `fpp-filenames`).
-Since FPP is implemented in Scala, and there is some overhead
-associated with starting up a tool, running `fpp-depend -g` _file_ 
-may help your build go faster.
+Running one tool may help your build go faster.
+
+`fpp-depend` provides the following options:
+
+`-a`: Enable unit test auto helpers.
+
+`-g` _file_: Write the names of the generated autocode files
+ to the file _file_.
+
+`-u` _file_: Write the names of the unit test support code
+files to _file_.
+
+For example:
+
+----
+% fpp-depend -g generated.txt -u ut-generated.txt
+array A = [3] U32
+passive component C {}
+^D
+% cat generated.txt
+AArrayAc.cpp
+AArrayAc.hpp
+AArrayAi.xml
+CComponentAc.cpp
+CComponentAc.hpp
+CComponentAi.xml
+% cat ut-generated.txt
+CGTestBase.cpp
+CGTestBase.hpp
+CTesterBase.cpp
+CTesterBase.hpp
+----
+
+----
+% fpp-depend -a -g generated.txt -u ut-generated.txt
+array A = [3] U32
+passive component C {}
+^D
+% cat generated.txt
+AArrayAc.cpp
+AArrayAc.hpp
+AArrayAi.xml
+CComponentAc.cpp
+CComponentAc.hpp
+CComponentAi.xml
+% cat ut-generated.txt
+CGTestBase.cpp
+CGTestBase.hpp
+CTesterBase.cpp
+CTesterBase.hpp
+CTesterHelpers.cpp
+----
+
+`fpp-depend` does not have an option for writing out the names of
+implementation template files, since those file names are not
+needed during dependency analysis.
 
 === Translating XML to FPP
 
@@ -628,15 +897,15 @@ XML files to FPP.
 Its purpose is to address the following case:
 
 . You have already developed an F Prime model in XML.
-. You wish to translate the model to FPP in order to use FPP as the source 
+. You wish to translate the model to FPP in order to use FPP as the source
 language going forward.
 
-The XML-to-FPP translation is designed to do most of the work in translating an 
+The XML-to-FPP translation is designed to do most of the work in translating an
 XML model into FPP.
 As discussed below, some manual effort will still be required,
 because the FPP and XML representations are not identical.
 The good news is that this is a one-time effort: you can do it once
-and then use the FPP version thereafter.
+and use the FPP version thereafter.
 
 *Tool name:* The tool for translating XML to FPP is called
 `fpp-from-xml`.
@@ -656,7 +925,7 @@ As an example, try this:
 % fpp-to-xml
 struct S { x: U32, y: F32 }
 ^D
-% fpp-from-xml SSerializableAi.xml 
+% fpp-from-xml SSerializableAi.xml
 struct S {
   x: U32
   y: F32
@@ -664,7 +933,7 @@ struct S {
 ----
 
 *Default values:*
-There are two issues to note in connection with translating default 
+There are two issues to note in connection with translating default
 values.
 
 First, in FPP, every definition has a default value, but
@@ -672,7 +941,7 @@ the default value need not be given explicitly:
 if you provide no explicit default value, then an implicit default is used.
 By contrast, in F Prime XML, (1) you _must_ supply default values for array
 elements, and (2) you _may_ supply default values for struct members
-or enumerations. 
+or enumerations.
 To keep the translation simple, if default values are present in the XML
 representation, then `fpp-from-xml` translates them to explicit values,
 even if they could be made implicit.
@@ -695,10 +964,10 @@ Notice that the implicit default value `[ 0, 0, 0 ]` becomes
 explicit when translating to XML and back to FPP.
 
 Second, to keep the translation simple, only literal numeric values,
-literal string values, literal Boolean values, and {cpp} qualified identifiers 
+literal string values, literal Boolean values, and {cpp} qualified identifiers
 (e.g., `a` or `A::B`) are translated.
 Other values (e.g., values specified with {cpp} constructor calls), are not translated.
-The reason is that the types of these values cannot be easily inferred from the 
+The reason is that the types of these values cannot be easily inferred from the
 XML representation.
 When a default value is not translated, the translator inserts an annotation
 identifying what was not translated, so that you can do the translation
@@ -709,9 +978,9 @@ For example, try this:
 ----
 % fpp-to-xml
 type T
-array A = [3] T  
+array A = [3] T
 ^D
-% fpp-from-xml AArrayAi.xml 
+% fpp-from-xml AArrayAi.xml
 @ FPP from XML: could not translate array value [ T(), T(), T() ]
 array A = [3] T
 ----
@@ -736,9 +1005,9 @@ array B = [2] A
 
 Here the XML representation of the array values `[ 1, 2 ]` and `[ 3, 4 ]`
 uses the {cpp} constructor calls `A(1, 2)` and `A(3, 4)`.
-When translating `BArrayAi.xml`, `fpp-from-xml` doesn't know how to translate 
+When translating `BArrayAi.xml`, `fpp-from-xml` doesn't know how to translate
 those values, because it doesn't have any information about the type `A`.
-So it omits the FPP default array value and reports the XML default element 
+So it omits the FPP default array value and reports the XML default element
 values in the annotation.
 That way, you can manually construct a default value in FPP.
 
@@ -752,21 +1021,21 @@ enumerations may appear as member types.
 * In the Port XML format, enumerations may appear
 as the types of arguments or as the return type.
 
-* In the XML formats for commands and for events, 
+* In the XML formats for commands and for events,
 enumerations may appear as the types of arguments.
 
 * In the XML formats for telemetry channels and for
 parameters, enumerations may appear as the types of
 data elements.
 
-In each case, the enumerated constants are specified 
+In each case, the enumerated constants are specified
 as part of the definition of the member, argument, return type, etc.
 
 FPP does not represent these inline enum definitions directly.
 In FPP, enum definitions are always named, so they can be reused.
-Therefore, when translating an F Prime XML file that contains inline enum 
+Therefore, when translating an F Prime XML file that contains inline enum
 definitions, `fpp-to-xml` does the following: (1) translate
-each inline definition to a named FPP enum; and (2) use the corresponding named 
+each inline definition to a named FPP enum; and (2) use the corresponding named
 types in the translated FPP struct or port.
 
 For example, here is an F Prime Serializable XML type
@@ -829,14 +1098,14 @@ inline enums, then we suggest the following procedure:
 . Run `fpp-from-xml` on the XML model as described above to convert all of the
 inline definitions to named XML types.
 
-. Refactor your XML model and FSW implementation to use the XML types generated 
+. Refactor your XML model and FSW implementation to use the XML types generated
 in step 1.
 This may require changes to your {cpp} code.
 For example, inline XML enums and XML enum types generate
 slightly different code.
 Therefore, you will need to revise any
 uses of the old inline enums to match the new format.
-Do this step incrementally, making sure that all your regression tests pass at 
+Do this step incrementally, making sure that all your regression tests pass at
 each step.
 
 . Once you have the XML model in the required form, run `fpp-from-xml`
@@ -892,7 +1161,7 @@ FPP, so a format containing this string won't be translated:
   </default>
 </array>
 ^D
-% fpp-from-xml AArrayAi.xml 
+% fpp-from-xml AArrayAi.xml
 @ FPP from XML: could not translate format string "%q"
 array A = [1] F32 default [
                             0.0
@@ -909,7 +1178,7 @@ dependencies in the ordinary way for FPP, as discussed in the
 section on <<Specifying-Models-as-Files,specifying models as files>>.
 
 XML directives that import XML dictionaries are translated
-to 
+to
 <<Specifying-Models-as-Files_Include-Specifiers,include specifiers>>.
 For example, suppose that `CComponentAi.xml` defines component `C`
 and contains the directive
@@ -991,23 +1260,68 @@ annotatable elements, you can run this script:
 sed 's/^\( *\)#/\1@ #/' | fpp-format $@ | sed 's/^\( *\)@ #/\1#/'
 ----
 
-It converts comments to annotations, runs `fpp-format`, and converts the 
+It converts comments to annotations, runs `fpp-format`, and converts the
 annotations back to comments.
 
 === Visualizing Topologies
 
-When FPP translates a topology _T_ to XML, as discussed in the section on
-<<Analyzing-and-Translating-Models_Generating-XML,generating XML>>,
-it adds special comments that can be read by a companion tool called
-`fprime-layout`.
-`fprime-layout` reads a topology XML file and produces a
-*topology visualization*, i.e., a graphical rendering of the topology
-in which the components are shapes, the ports are smaller shapes,
-and the connections are arrows between the ports.
-`fprime-layout` produces one visualization for each
-<<Defining-Topologies_Connection-Graphs,connection graph>> in the 
-topology.
+FPP provides a tool called `fpp-to-layout` for generating files
+that you can use to visualize topologies.
+Given a topology _T_, this tool generates a directory containing
+the *layout input files* for _T_.
+There is one file for each <<Defining-Topologies_Connection-Graphs,connection 
+graph>> in _T_.
+The files are designed to work with a tool called `fprime-layout`, which
+we describe below.
 
+*Procedure:*
+The usual procedure for running `fpp-to-layout` is as follows:
+
+. Identify one or more files _F_ containing topology definitions
+for which you wish to generate layout input files.
+
+. <<Specifying-Models-as-Files_Computing-Dependencies,Compute the dependencies>> _D_ of _F_.
+
+. If _D_ is empty, then run `fpp-to-layout` _F_.
+
+. Otherwise run `fpp-to-layout -i` _D~1~_ `,` ... `,` _D~n~_ _F_, where _D~i~_ are the
+  names of the dependencies.
+
+Except for the tool name, this procedure is identical to the one given for
+<<Analyzing-and-Translating-Models_Generating-C-Plus-Plus,generating {cpp}>>.
+
+*Input:* You can provide input to `fpp-to-layout`
+either through named files or through standard input.
+
+*Tool behavior:*
+For each topology _T_ defined in the input files _F_, `fpp-to-layout` does
+the following:
+
+. If a directory named _T_ `Layout` exists in the current directory, then
+remove it.
+
+. Create a directory named _T_ `Layout` in the current directory.
+
+. In the directory created in step 2, write one layout input file
+for each of the connection graphs in _T_.
+The 
+https://github.com/fprime-community/fprime-layout/wiki/Topology-Input[`fprime-layout` wiki]
+describes the file format.
+
+*Options:*
+`fpp-to-layout` provides an option `-d` for selecting the current directory
+to use when writing layout input files.
+This option works in the same way as for
+<<Analyzing-and-Translating-Models_Generating-C-Plus-Plus_Constant-Definitions,
+`fpp-to-cpp`>>.
+See the https://github.com/nasa/fpp/wiki/fpp-to-layout[FPP wiki] for details.
+
+*Producing visualizations:*
+Once you have generated layout input files, you can use a
+companion tool called `fprime-layout` to read the files and produce a
+*topology visualization*, i.e., a graphical rendering of the topology in which 
+the component instances are shapes, the ports are smaller shapes, and the 
+connections are arrows between the ports.
 Topology visualization is an important part of the FPP work flow:
 
 * It provides a graphical representation of the instances and
@@ -1021,15 +1335,218 @@ the auto-generated connections of the pattern graph specifiers.
 
 Using `fprime-layout`, you can do the following:
 
-* Extract the connection graphs from a topology XML file.
-
 * Render the connection graphs as EPS (Encapsulated PostScript),
 generating one EPS file for each connection graph.
 
-* Generate a set of layouts, one for each connection graph,
+* Generate a set of layouts, one for each layout input file,
 and view the layouts in a browser.
 
 See the https://github.com/fprime-community/fprime-layout[`fprime-layout`
 repository] for more details.
 
+=== Generating Ground Dictionaries
+
+A *ground dictionary* specifies all the commands,
+events, telemetry, parameters, and data products in a FSW
+application.
+Typically a ground data system (GDS), such as the F Prime GDS,
+uses the ground dictionary to provide the operational
+interface to the application.
+The interface typically includes real-time commanding;
+real-time display of events and telemetry; logging of
+commands, events, and telemetry; uplink and downlink of files, including data
+products; and decoding of data products.
+This section explains how to generate ground dictionaries from
+FPP models.
+
+*Tool name:* The tool for generating ground dictionaries is called
+`fpp-to-dict`.
+
+*Procedure:*
+The usual procedure for running `fpp-to-dict` is as follows:
+
+. Identify one or more files _F_ that you want to translate.
+. <<Specifying-Models-as-Files_Computing-Dependencies,Compute the dependencies>> _D_ of _F_.
+. If _D_ is empty, then run `fpp-to-dict` _F_.
+. Otherwise run `fpp-to-dict -i` _D~1~_ `,` ... `,` _D~n~_ _F_, where _D~i~_ are the
+names of the dependencies.
+
+Except for the tool name, this procedure is identical to the one given for
+<<Analyzing-and-Translating-Models_Generating-C-Plus-Plus,generating {cpp}>>.
+
+*Input:* As with the tools described above, you can provide input to
+`fpp-to-dict`
+either through named files or through standard input.
+
+*Tool behavior:*
+For each topology _T_ defined in the input files _F_, `fpp-to-dict` writes a 
+file
+_T_ `TopologyDictionary.json`.
+The dictionary is specified in JavaScript Object Notation (JSON) format.
+The JSON format is specified in the
+https://fprime.jpl.nasa.gov/devel/docs/reference/fpp-json-dict/[F Prime design 
+documentation].
+
+Here is a common use case:
+
+* The input files _F_ define a single topology _T_.
+_T_ describes all the component instances and connections in a FSW
+application, and the generated dictionary _T_ `TopologyDictionary.json`
+is the dictionary for the application.
+
+* If _T_ imports subtopologies, then those subtopologies are defined
+in the dependency files _D_.
+That way the subtopologies are part of the model, but no dictionaries
+are generated for them.
+
+*Options:*
+`fpp-to-dict` provides the following options:
+
+* The `-d` and `-s` options work in the same way as for
+<<Analyzing-and-Translating-Models_Generating-C-Plus-Plus_Constant-Definitions,
+`fpp-to-cpp`>>.
+
+* You can use the `-f` and `-p` options to specify a framework version
+and project version for the dictionary.
+That way the dictionary is stamped with information that connects
+it to the FSW version for which it is intended to be used.
+
+* You can use the `-l` option to specify library versions used
+in the project.
+
+See the https://github.com/nasa/fpp/wiki/fpp-to-dict[FPP wiki] for details.
+
+=== Generating JSON Models
+
+FPP provides a tool called `fpp-to-json` for converting FPP models to
+JavaScript Object Notation (JSON) format.
+Using this tool, you can import FPP models into programs written
+in any language that has a library for reading JSON, e.g., JavaScript,
+TypeScript, or Python.
+Generating and importing JSON may be convenient if you need to develop
+a simple analysis or translation tool for FPP models, and you don't
+want to develop the tool in Scala.
+For more complex tools, we recommend that you develop in Scala
+against the FPP compiler data structures.
+
+*Procedure:*
+The usual procedure for running `fpp-to-json` is as follows:
+
+. Identify one or more files _F_ that you want to analyze.
+. <<Specifying-Models-as-Files_Computing-Dependencies,Compute the dependencies>> _D_ of _F_.
+. Run `fpp-to-json` _D_ _F_. Note that _D_ may be empty.
+
+If you are using `fpp-to-json` with the `-s` option (see below),
+then you can run `fpp-to-json` _F_, without computing dependencies.
+
+*Tool behavior:* When you run `fpp-to-json`, the tool checks the
+syntax and semantics of the source model, reporting any errors that occur.
+If everything checks out, it generates three files:
+
+* `fpp-ast.json`: The abstract syntax tree (AST).
+This is a tree data structure that represents the source syntax.
+It contains AST nodes, each of which has a unique identifier.
+
+* `fpp-loc-map.json`: The location map.
+This object is a map from AST node IDs to the source
+locations (file, line number, and column number)
+of the corresponding AST nodes.
+
+* `fpp-analysis.json`: The Analysis data structure.
+This object contains semantic information
+inferred from the source model, e.g., the types of all the
+expressions and the constant values of all the numeric
+expressions.
+Only output data is included in the JSON; temporary
+data structures used during the analysis algorithm are
+omitted.
+For more information on the Analysis data structure,
+see the
+https://github.com/nasa/fpp/wiki/Analysis-Data-Structure[FPP wiki].
+
+*JSON format:*
+To understand this subsection, you need to know a little
+bit about case classes in Scala.
+For a primer, see
+https://github.com/nasa/fpp/wiki/Pure-Functional-Programming-in-Scala#use-case-classes-for-pattern-matching[this wiki page].
+
+The JSON translation uses a Scala library called
+https://circe.github.io/circe/[Circe].
+In general the translation follows a set of standard rules, so the
+output format can be easily inferred from the types of the data structures
+in the FPP source code:
+
+. A Scala case class `C` is translated as follows, unless
+it extends a sealed trait (see below).
+A value `v` of type `C` becomes
+a JSON dictionary with the field names as keys and the field
+values as their values.
+For example a value `C(1,"hello")` of type `case class C(n: Int, s: String)`
+becomes a JSON value `{ "n": 1, "s": "String" }`.
+
+. A Scala case class `C` that extends a sealed trait `T` represents a
+named variant of type `T`.
+In this case a value `v` of type `C` is wrapped in a dictionary with one
+key (the variant name `C`) and one value (the value `v`).
+For example, a value `C(1)` of type `case class C(n: Int) extends T`
+becomes a JSON value `{ "C" : { "n" : 1 } }`, while a value
+`D("hello")` of type `case class D(s: String) extends T`
+becomes a JSON value `{ "D" : { "s" : "hello" } }`.
+In this way each variant is labeled with the variant name.
+
+. A Scala list becomes a JSON array, and a Scala map becomes
+a JSON dictionary.
+
+There are a few exceptions, either because the standard translation
+does not work, or because we need special behavior for important
+cases:
+
+* We streamline the translation of the Scala Option type, translating
+`Some(v)` as `{ "Some" : v }` and `None` as `"None"`.
+
+* In the AST, we translate
+the type AstNode as if it were a variant type, i.e., we translate
+`AstNode([data], [id])` to `"AstNode" : { "data" : [data], "id" : [id] } }`.
+The `AstNode` keys identify the AstNode objects.
+
+* In the AST, to reduce clutter we skip over the `node`
+field of module, component, and topology member lists.
+This field is an artifact of the way the Scala code is written;
+deleting it does not lose information.
+
+* In the Analysis data structure, to avoid repetition,
+we translate AstNode values as `{ "astNodeId" : [node id] }`,
+eliminating the data field of the node.
+We also omit annotations from annotated AST nodes.
+The data fields and the annotations can be looked up in the AST,
+by searching for the node ID.
+
+* When translating an FPP symbol (i.e., a reference to a definition),
+we provide the information in the
+Symbol trait (the node ID and the unqualified name).
+All symbols extend this trait.
+We omit the AST node information stored in the concrete symbol.
+This information can be looked up with the AST node ID.
+
+* When translating a component instance value, we replace
+the component stored in the value with the corresponding
+AST node ID.
+
+* When the keys of a Scala map cannot easily be
+converted to strings, we convert the map to a list
+of pairs, represented as an array of JSON arrays.
+For example, this is how we translate the PortNumberMap
+in the Analysis data structure, which maps Connection objects to integers.
+
+*Options:* The following options are available
+when running `fpp-to-xml`:
+
+* `-d` _dir_ : Similar to the corresponding option of
+<<Analyzing-and-Translating-Models_Generating-XML,`fpp-to-xml`>>.
+
+* `-s`: Analyze syntax only:
+With this option, `fpp-to-json` generates the AST and the
+location map only; it doesn't generate the Analysis data structure.
+Because semantic analysis is not run, you don't have to present
+a complete or semantically correct FPP model to the tool.
 

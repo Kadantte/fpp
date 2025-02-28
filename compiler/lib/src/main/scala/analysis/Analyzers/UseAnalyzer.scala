@@ -24,6 +24,9 @@ trait UseAnalyzer extends TypeExpressionAnalyzer {
   /** A use of a type definition */
   def typeUse(a: Analysis, node: AstNode[Ast.TypeName], use: Name.Qualified): Result = default(a)
 
+  /** A use of a state machine definition*/
+  def stateMachineUse(a: Analysis, node: AstNode[Ast.QualIdent], use: Name.Qualified): Result = default(a)
+
   override def defComponentInstanceAnnotatedNode(a: Analysis, node: Ast.Annotated[AstNode[Ast.DefComponentInstance]]) = {
     val (_, node1, _) = node
     val data = node1.data
@@ -62,6 +65,15 @@ trait UseAnalyzer extends TypeExpressionAnalyzer {
     qualIdentNode (componentInstanceUse) (a, data.instance)
   }
 
+  override def specStateMachineInstanceAnnotatedNode(a: Analysis, node: Ast.Annotated[AstNode[Ast.SpecStateMachineInstance]]) = {
+    val (_, node1, _) = node
+    val data = node1.data
+    for {
+      a <- qualIdentNode(stateMachineUse)(a, data.stateMachine)
+      a <- super.specStateMachineInstanceAnnotatedNode(a, node)
+    } yield a
+  }
+
   override def specConnectionGraphAnnotatedNode(
     a: Analysis, node: Ast.Annotated[AstNode[Ast.SpecConnectionGraph]]) = {
     def connection(a: Analysis, connection: Ast.SpecConnectionGraph.Connection): Result = {
@@ -93,7 +105,7 @@ trait UseAnalyzer extends TypeExpressionAnalyzer {
           a <- opt(qualIdentNode(portUse))(a, general.port)
           a <- opt(exprNode)(a, general.priority)
         } yield a
-      case special : Ast.SpecPortInstance.Special => {
+      case special : Ast.SpecPortInstance.Special =>
         // Construct the use implied by the special port
         val name = special.kind match {
           case Ast.SpecPortInstance.CommandRecv => "Cmd"
@@ -102,6 +114,10 @@ trait UseAnalyzer extends TypeExpressionAnalyzer {
           case Ast.SpecPortInstance.Event => "Log"
           case Ast.SpecPortInstance.ParamGet => "PrmGet"
           case Ast.SpecPortInstance.ParamSet => "PrmSet"
+          case Ast.SpecPortInstance.ProductGet => "DpGet"
+          case Ast.SpecPortInstance.ProductRecv => "DpResponse"
+          case Ast.SpecPortInstance.ProductRequest => "DpRequest"
+          case Ast.SpecPortInstance.ProductSend => "DpSend"
           case Ast.SpecPortInstance.Telemetry => "Tlm"
           case Ast.SpecPortInstance.TextEvent => "LogText"
           case Ast.SpecPortInstance.TimeGet => "Time"
@@ -110,10 +126,28 @@ trait UseAnalyzer extends TypeExpressionAnalyzer {
         val nodeList = identList.map(AstNode.create(_, node.id))
         val qualIdent = Ast.QualIdent.fromNodeList(nodeList)
         val impliedUse = AstNode.create(qualIdent, node.id)
-        qualIdentNode(portUse)(a, impliedUse)
-      }
+        for {
+          a <- opt(exprNode)(a, special.priority)
+          a <- qualIdentNode(portUse)(a, impliedUse)
+        } yield a
     }
   }
+
+  override def specTlmPacketAnnotatedNode(
+    a: Analysis,
+    aNode: Ast.Annotated[AstNode[Ast.SpecTlmPacket]]
+  ) = for {
+    a <- super.specTlmPacketAnnotatedNode(a, aNode)
+    a <- visitList(a, aNode._2.data.members, tlmPacketMember)
+  } yield a
+
+  override def specTlmPacketSetAnnotatedNode(
+    a: Analysis,
+    aNode: Ast.Annotated[AstNode[Ast.SpecTlmPacketSet]]
+  ) = for {
+    a <- super.specTlmPacketSetAnnotatedNode(a, aNode)
+    a <- visitList(a, aNode._2.data.omitted, tlmChannelIdentifierNode)
+  } yield a
 
   override def specTopImportAnnotatedNode(a: Analysis, node: Ast.Annotated[AstNode[Ast.SpecTopImport]]) = {
     val (_, node1, _) = node
@@ -135,5 +169,18 @@ trait UseAnalyzer extends TypeExpressionAnalyzer {
     val use = Name.Qualified.fromQualIdent(qualIdent.data)
     f(a, qualIdent, use)
   }
+
+  private def tlmChannelIdentifierNode (
+    a: Analysis,
+    node: AstNode[Ast.TlmChannelIdentifier]
+  ): Result =
+    qualIdentNode (componentInstanceUse) (a, node.data.componentInstance)
+
+  private def tlmPacketMember(a: Analysis, member: Ast.TlmPacketMember) =
+    member match {
+      case Ast.TlmPacketMember.SpecInclude(node) => Right(a)
+      case Ast.TlmPacketMember.TlmChannelIdentifier(node) =>
+        tlmChannelIdentifierNode(a, node)
+    }
 
 }

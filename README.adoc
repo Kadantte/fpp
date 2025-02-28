@@ -3,7 +3,7 @@
 This repository contains the code and documentation for F Prime Prime (FPP for 
 short).
 FPP is a modeling language for the
-https://nasa.github.io/fprime/[F Prime flight software framework].
+https://fprime.jpl.nasa.gov[F Prime flight software framework].
 
 == Contents
 
@@ -11,14 +11,20 @@ https://nasa.github.io/fprime/[F Prime flight software framework].
 
 `docs`: The FPP User's Guide and language specification.
 
-`editors`: Syntax highlighting for code editors. Currently vim is supported.
+`editors`: Syntax highlighting for code editors. Currently Vim and Emacs are supported
+here.
+There is also an FPP plugin available within Visual Studio Code.
 
 == Building and Installing
 
 === Tools
 
 See `compiler/README.adoc`.
-If you want to use FPP, then you should install these tools.
+To use or develop FPP in a standalone mode, you should install these tools.
+To use FPP as part of F Prime development, you can install the F Prime tool
+set, which includes FPP.
+See the F Prime installation instructions
+https://fprime.jpl.nasa.gov/latest/docs/getting-started/installing-fprime/[here].
 
 === Spec and User's Guide
 

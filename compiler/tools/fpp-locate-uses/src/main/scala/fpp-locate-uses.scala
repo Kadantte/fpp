@@ -70,6 +70,7 @@ object FPPLocateUses {
         val fileNode = AstNode.create(relativePath.normalize.toString)
         val kind = s match {
           case _: Symbol.AbsType => Ast.SpecLoc.Type
+          case _: Symbol.AliasType => Ast.SpecLoc.Type
           case _: Symbol.Array => Ast.SpecLoc.Type
           case _: Symbol.Component => Ast.SpecLoc.Component
           case _: Symbol.ComponentInstance => Ast.SpecLoc.ComponentInstance
@@ -78,6 +79,7 @@ object FPPLocateUses {
           case _: Symbol.EnumConstant => Ast.SpecLoc.Type
           case _: Symbol.Module => throw InternalError("use should not be module symbol")
           case _: Symbol.Port => Ast.SpecLoc.Port
+          case _: Symbol.StateMachine => Ast.SpecLoc.StateMachine
           case _: Symbol.Struct => Ast.SpecLoc.Type
           case _: Symbol.Topology => Ast.SpecLoc.Topology
         }
@@ -89,20 +91,8 @@ object FPPLocateUses {
     }
   }
 
-  def main(args: Array[String]) = {
-    Error.setTool(Tool(name))
-    for { options <- OParser.parse(oparser, args, Options()) }
-    yield {
-      command(options) match {
-        case Left(error) => {
-          error.print
-          System.exit(1)
-        }
-        case _ => ()
-      }
-    }
-    ()
-  }
+  def main(args: Array[String]) =
+    Tool(name).mainMethod(args, oparser, Options(), command)
 
   val builder = OParser.builder[Options]
 

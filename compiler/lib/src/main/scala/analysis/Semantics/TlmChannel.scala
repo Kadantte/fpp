@@ -23,7 +23,7 @@ final case class TlmChannel(
 
 object TlmChannel {
 
-  type Id = Int
+  type Id = BigInt
 
   type Limits = Map[Ast.SpecTlmChannel.LimitKind, (AstNode.Id, Value)]
 
@@ -41,6 +41,7 @@ object TlmChannel {
         )
         lowLimits <- computeLimits(a, data.low)
         highLimits <- computeLimits(a, data.high)
+        _ <- a.checkDisplayableType(data.typeName.id, "type of telemetry channel is not displayable")
       }
       yield TlmChannel(aNode, channelType, update, format, lowLimits, highLimits)
    }

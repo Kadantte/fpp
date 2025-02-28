@@ -26,7 +26,7 @@ To write a multiline comment, precede each line with `#`:
 An *annotation* is similar to a
 <<Comments-and-Annotations_Comments,comment>>, but it is attached to a
 syntactic element of a model, and it is preserved during
-<<Analysis-and-Translation,analysis and translation>>.  The precise use of 
+<<Analysis-and-Translation,analysis and translation>>.  The precise use of
 annotations depends on the translator. A typical use
 is to include annotations as comments in generated code.
 
@@ -41,6 +41,10 @@ Annotations can occur at the following syntax elements:
 * A <<Definitions_Struct-Definitions,member of a struct definition>>.
 
 * A <<Formal-Parameter-Lists,formal parameter>>.
+
+* A <<Definitions_State-Machine-Definitions_Syntax,state machine member>>.
+
+* A <<State-Machine-Behavior-Elements_State-Definitions_Syntax,state definition member>>.
 
 These elements are called the *annotatable elements* of an FPP model.
 
@@ -84,13 +88,13 @@ module M {
 ==== Multiline Annotations
 
 You can write several pre-annotations in a row before an
-<<Comments-and-Annotations_Annotations_Where-Annotations-Can-Occur, 
+<<Comments-and-Annotations_Annotations_Where-Annotations-Can-Occur,
 annotatable element>> _e_.
 In this case, all the pre-annotations are attached to the
 element, in the order that they appear.
 
 Similarly, you can write several post-annotations in a row after an
-<<Comments-and-Annotations_Annotations_Where-Annotations-Can-Occur, 
+<<Comments-and-Annotations_Annotations_Where-Annotations-Can-Occur,
 annotatable element>> _e_.
 In this case, all the post-annotations are attached to the
 element, in the order that they appear.

@@ -1,0 +1,49 @@
+#!/bin/sh
+
+# ----------------------------------------------------------------------
+# Compile ref C++ files, to check them for validity
+#
+# By default, each file is compiled with three different sets of values of F
+# Prime guards: 
+# - Default values as found in fprime/config/FpConfig.h
+# - All guards turned on
+# - All guards turned off (except FW_PORT_SERIALIZATION for components
+#   containing serial ports)
+#
+# If this script is run with the --all flag, each file is compiled with all
+# possible combinations of values of F Prime guards with these exceptions:
+# - FW_SERIALIZABLE_TO_STRING and FW_ARRAY_TO_STRING always have the same value
+# - FW_PORT_SERIALIZATION is always on for components containing serial ports
+# ----------------------------------------------------------------------
+
+export LOCAL_CPP_FLAGS="
+-I../impl
+-I../test-base
+-I../test-impl
+-I$FPRIME/gtest/googletest-src/googletest/include
+-DPROTECTED=public
+-DPRIVATE=public
+-DBUILD_UT=1
+"
+
+# Generate framework C++ files
+../../fprime/generate_cpp
+
+# Generate header files
+echo "running the tests to generate the header files"
+./run
+
+# Generate the base class header files
+echo "running the tests in ../base to generate the header files"
+(cd ../base; ./run)
+cp ../base/*Ac.hpp .
+
+# Generate impl and test impl headers
+# This step is needed to support auto test setup
+for dir in impl test-impl
+do
+  (cd ../$dir; ../gen_ref_headers)
+done
+
+# Compile cpp files
+../compile_base_cpp --test "$@"

@@ -25,6 +25,19 @@ object EnterSymbols
       yield updateMap(a, symbol).copy(nestedScope = nestedScope)
   }
 
+  override def defAliasTypeAnnotatedNode(
+    a: Analysis,
+    aNode: Ast.Annotated[AstNode[Ast.DefAliasType]]
+  ) = {
+    val (_, node, _) = aNode
+    val data = node.data
+    val name = data.name
+    val symbol = Symbol.AliasType(aNode)
+    val nestedScope = a.nestedScope
+    for (nestedScope <- nestedScope.put(NameGroup.Type)(name, symbol))
+      yield updateMap(a, symbol).copy(nestedScope = nestedScope)
+  }
+
   override def defArrayAnnotatedNode(
     a: Analysis,
     aNode: Ast.Annotated[AstNode[Ast.DefArray]]
@@ -49,6 +62,7 @@ object EnterSymbols
     val symbol = Symbol.Component(aNode)
     for {
       nestedScope <- a.nestedScope.put(NameGroup.Component)(name, symbol)
+      nestedScope <- nestedScope.put(NameGroup.StateMachine)(name, symbol)
       nestedScope <- nestedScope.put(NameGroup.Type)(name, symbol)
       nestedScope <- nestedScope.put(NameGroup.Value)(name, symbol)
       a <- {
@@ -214,6 +228,19 @@ object EnterSymbols
     val symbol = Symbol.Port(aNode)
     val nestedScope = a.nestedScope
     for (nestedScope <- nestedScope.put(NameGroup.Port)(name, symbol))
+      yield updateMap(a, symbol).copy(nestedScope = nestedScope)
+  }
+
+  override def defStateMachineAnnotatedNode(
+    a: Analysis,
+    aNode: Ast.Annotated[AstNode[Ast.DefStateMachine]]
+  ) = { 
+    val (_, node, _) = aNode
+    val data = node.data
+    val name = data.name
+    val symbol = Symbol.StateMachine(aNode)
+    val nestedScope = a.nestedScope
+    for (nestedScope <- nestedScope.put(NameGroup.StateMachine)(name, symbol))
       yield updateMap(a, symbol).copy(nestedScope = nestedScope)
   }
 

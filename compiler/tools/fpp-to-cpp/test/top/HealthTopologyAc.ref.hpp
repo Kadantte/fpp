@@ -11,6 +11,31 @@
 #include "Health.hpp"
 #include "HealthTopologyDefs.hpp"
 
+// ----------------------------------------------------------------------
+// Component instances
+// ----------------------------------------------------------------------
+
+namespace M {
+
+  //! c1
+  extern M::C c1;
+
+}
+
+namespace M {
+
+  //! c2
+  extern M::C c2;
+
+}
+
+namespace M {
+
+  //! health
+  extern Svc::Health health;
+
+}
+
 namespace M {
 
   // ----------------------------------------------------------------------
@@ -19,32 +44,34 @@ namespace M {
 
   namespace BaseIds {
     enum {
-      health = 0x100,
-      c1 = 0x200,
-      c2 = 0x300,
+      M_health = 0x100,
+      M_c1 = 0x200,
+      M_c2 = 0x300,
     };
   }
 
   namespace InstanceIds {
     enum {
-      c1,
-      c2,
-      health,
+      M_c1,
+      M_c2,
+      M_health,
     };
   }
 
   // ----------------------------------------------------------------------
-  // Component instances
+  // Component configuration objects
   // ----------------------------------------------------------------------
 
-  //! c1
-  extern C c1;
+  namespace ConfigObjects {
 
-  //! c2
-  extern C c2;
+    namespace M_health {
+      //!< Number of entries in the pingEntryies array
+      constexpr FwSizeType NUM_PING_ENTRIES = 2;
+      //!< Ping entry configuration for Svc::Health
+      extern Svc::Health::PingEntry pingEntries[NUM_PING_ENTRIES];
+    }
 
-  //! health
-  extern Svc::Health health;
+  }
 
   // ----------------------------------------------------------------------
   // Helper functions
@@ -55,11 +82,45 @@ namespace M {
       const TopologyState& state //!< The topology state
   );
 
+  //! Configure components
+  void configComponents(
+      const TopologyState& state //!< The topology state
+  );
+
   //! Set component base Ids
   void setBaseIds();
 
   //! Connect components
   void connectComponents();
+
+  //! Register commands
+  void regCommands();
+
+  //! Read parameters
+  void readParameters();
+
+  //! Load parameters
+  void loadParameters();
+
+  //! Start tasks
+  void startTasks(
+      const TopologyState& state //!< The topology state
+  );
+
+  //! Stop tasks
+  void stopTasks(
+      const TopologyState& state //!< The topology state
+  );
+
+  //! Free threads
+  void freeThreads(
+      const TopologyState& state //!< The topology state
+  );
+
+  //! Tear down components
+  void tearDownComponents(
+      const TopologyState& state //!< The topology state
+  );
 
   // ----------------------------------------------------------------------
   // Setup and teardown functions
